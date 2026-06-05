@@ -52,7 +52,7 @@ function Questions() {
       <div className="main-wrapper">
         <Topbar openModal={() => setShowModal(true)} />
         <main className="content">
-          <h1 className="page-title">All Questions</h1>
+          <h1 className="page-title">done Questions</h1>
 
           <div className="questions-search-bar">
             <div className="questions-search-input">

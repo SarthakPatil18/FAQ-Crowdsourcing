@@ -865,7 +865,7 @@ input, select, textarea {
 }
 
 .q-title-blue a:hover {
-  text-decoration: underline;
+  text-decoration: none;
 }
 
 /* Flat question list */
