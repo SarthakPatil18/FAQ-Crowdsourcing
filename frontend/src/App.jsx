@@ -6,11 +6,12 @@ import QuestionDetail from "./pages/QuestionDetail";
 import Categories from "./pages/Categories";
 import Contributors from "./pages/Contributors";
 import Bookmarks from "./pages/Bookmarks";
+import Profile from "./pages/Profile";
 
 function App() {
   return (
     <Routes>
-      <Route path="/" element={<Dashboard />} />
+      <Route path="/" element={<Profile />} />
       <Route path="/questions" element={<Questions />} />
       <Route path="/questions/:id" element={<QuestionDetail />} />
       <Route path="/categories" element={<Categories />} />
