@@ -6,6 +6,7 @@ import QuestionDetail from "./pages/QuestionDetail";
 import Categories from "./pages/Categories";
 import Contributors from "./pages/Contributors";
 import Bookmarks from "./pages/Bookmarks";
+import Profile from "./pages/Profile";
 
 function App() {
   return (
@@ -16,6 +17,7 @@ function App() {
       <Route path="/categories" element={<Categories />} />
       <Route path="/contributors" element={<Contributors />} />
       <Route path="/bookmarks" element={<Bookmarks />} />
+      <Route path="/profile" element={<Profile />} />
     </Routes>
   );
 }

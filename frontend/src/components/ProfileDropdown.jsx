@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { useFAQ } from "../context/FAQContext";
 import "./ProfileDropdown.css";
+import { Link } from "react-router-dom";
 
 // Tabler Icons represented as clean inline SVGs
 const UserIcon = () => (
@@ -112,10 +113,10 @@ function ProfileDropdown({ isOpen, onClose }) {
       {/* Dropdown Menu Items */}
       <ul className="profile-dropdown-menu">
         <li>
-          <a href="#profile" onClick={(e) => { e.preventDefault(); onClose(); }}>
+          <Link to="/profile" onClick={onClose}>
             <UserIcon />
             <span>My Profile</span>
-          </a>
+          </Link>
         </li>
         <li>
           <a href="#questions" onClick={(e) => { e.preventDefault(); onClose(); }}>
