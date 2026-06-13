@@ -6,8 +6,21 @@ const { getSQLiteDb } = require("../db/sqlite");
 const FAQ = require("../models/FAQ");
 const UserQuery = require("../models/UserQuery");
 const { trackEvent } = require("../services/eventService");
+const { z } = require("zod");
+const { validate } = require("../middleware/validate");
 
-router.post("/", async (req, res) => {
+const searchSchema = z.object({
+  body: z.object({
+    keyword: z.string().max(200).optional(),
+    keywords: z.array(z.string().max(80)).optional(),
+    category: z.string().max(100).optional(),
+    limit: z.number().min(1).max(50).optional()
+  }),
+  params: z.object({}).optional(),
+  query: z.object({}).optional()
+});
+
+router.post("/", validate(searchSchema), async (req, res) => {
   try {
     const { keyword, keywords, category, limit = 20 } = req.body;
 

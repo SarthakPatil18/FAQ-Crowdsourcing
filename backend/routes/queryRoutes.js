@@ -7,8 +7,22 @@ const UserQuery = require("../models/UserQuery");
 const { runSyncPipeline } = require("../services/syncService");
 const { trackEvent } = require("../services/eventService");
 const { inferCategory, normalizeTags } = require("../services/categoryService");
+const { z } = require("zod");
+const { validate } = require("../middleware/validate");
 
-router.post("/", async (req, res) => {
+const createQuerySchema = z.object({
+  body: z.object({
+    question: z.string().min(3).max(500),
+    answer: z.string().max(3000).optional(),
+    description: z.string().max(3000).optional(),
+    category: z.string().max(100).optional(),
+    tags: z.array(z.string().max(40)).optional()
+  }),
+  params: z.object({}).optional(),
+  query: z.object({}).optional()
+});
+
+router.post("/", validate(createQuerySchema), async (req, res) => {
   try {
     const { question, answer, category, tags, description } = req.body;
 

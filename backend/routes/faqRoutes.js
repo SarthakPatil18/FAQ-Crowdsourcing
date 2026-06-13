@@ -6,6 +6,7 @@ const { getSQLiteDb } = require("../db/sqlite");
 const FAQ = require("../models/FAQ");
 const { extractKeywords } = require("../services/syncService");
 const { inferCategory, normalizeTags } = require("../services/categoryService");
+const { getCache, setCache, clearCache } = require("../services/cacheService");
 
 router.get("/", async (req, res) => {
   try {
@@ -74,6 +75,8 @@ router.post("/", async (req, res) => {
         tags: normalizedTags
       });
 
+      clearCache("categories");
+
       return res.status(201).json({
         storage: "mongodb",
         data: faq
@@ -101,6 +104,8 @@ router.post("/", async (req, res) => {
       normalizedTags.join(",")
     );
 
+    clearCache("categories");
+
     return res.status(201).json({
       storage: "sqlite",
       data: {
@@ -120,6 +125,12 @@ router.post("/", async (req, res) => {
 
 router.get("/meta/categories", async (req, res) => {
   try {
+    const cached = getCache("categories");
+
+    if (cached) {
+      return res.json(cached);
+    }
+
     if (isMongoAvailable()) {
       const categories = await FAQ.aggregate([
         {
@@ -135,14 +146,18 @@ router.get("/meta/categories", async (req, res) => {
         }
       ]);
 
-      return res.json({
+      const payload = {
         status: "success",
         storage: "mongodb",
         data: categories.map((item) => ({
           name: item._id || "General",
           questions: item.count
         }))
-      });
+      };
+
+      setCache("categories", payload, 60000);
+
+      return res.json(payload);
     }
 
     const db = getSQLiteDb();
@@ -154,11 +169,15 @@ router.get("/meta/categories", async (req, res) => {
       ORDER BY questions DESC
     `);
 
-    return res.json({
+    const payload = {
       status: "success",
       storage: "sqlite",
       data: rows
-    });
+    };
+
+    setCache("categories", payload, 60000);
+
+    return res.json(payload);
   } catch (error) {
     res.status(500).json({
       error: "Failed to fetch categories",
