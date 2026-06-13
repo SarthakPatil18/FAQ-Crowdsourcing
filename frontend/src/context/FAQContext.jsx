@@ -282,7 +282,7 @@ export function FAQProvider({ children }) {
             for (const q of initialQuestions) {
               await fetch("http://localhost:5000/api/faqs", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: { "Content-Type": "application/json", "user-id": "1" },
                 body: JSON.stringify({
                   question: q.title,
                   answer: q.description || q.excerpt
@@ -335,7 +335,7 @@ export function FAQProvider({ children }) {
     try {
       await fetch("http://localhost:5000/api/queries", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "user-id": "1", "username": "Sarthak (You)" },
         body: JSON.stringify({
           question: title.trim(),
           answer: description.trim()
@@ -430,7 +430,7 @@ export function FAQProvider({ children }) {
       try {
         await fetch(`http://localhost:5000/api/queries/${rawId}/resolve`, {
           method: "PATCH",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", "user-id": "1", "username": author },
           body: JSON.stringify({ answer: content })
         });
       } catch (e) {

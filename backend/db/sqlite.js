@@ -38,6 +38,32 @@ async function connectSQLite() {
     );
   `);
 
+  await sqliteDb.exec(`
+    CREATE TABLE IF NOT EXISTS follows (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      followable_type TEXT CHECK(followable_type IN ('question', 'tag')),
+      followable_id INTEGER,
+      is_muted BOOLEAN DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      UNIQUE (user_id, followable_type, followable_id)
+    );
+  `);
+
+  await sqliteDb.exec(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      follow_id INTEGER,
+      message TEXT,
+      is_read BOOLEAN DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      FOREIGN KEY (follow_id) REFERENCES follows(id)
+    );
+  `);
+
   console.log("SQLite fallback ready");
 }
 

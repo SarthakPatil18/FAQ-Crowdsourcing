@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, useParams } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
 import AskQuestionModal from "../components/AskQuestionModal";
+import Hashtag from "../components/Hashtag";
 import { useFAQ } from "../context/FAQContext";
 
 const defaultQuestion = {
@@ -27,7 +28,76 @@ function QuestionDetail() {
   const [summary, setSummary] = useState("");
   const [summaryLoading, setSummaryLoading] = useState(false);
 
+  const [followData, setFollowData] = useState({
+    isFollowing: false,
+    isMuted: false,
+    followId: null
+  });
+  const [showFollowMenu, setShowFollowMenu] = useState(false);
+  const followMenuRef = useRef(null);
+
   const question = questions.find((q) => String(q.id) === String(id)) || defaultQuestion;
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (followMenuRef.current && !followMenuRef.current.contains(event.target)) {
+        setShowFollowMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleFollowClick = async () => {
+    if (!followData.isFollowing) {
+      try {
+        const res = await fetch("http://localhost:5000/api/follows", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "user-id": "1" },
+          body: JSON.stringify({ followable_type: "question", followable_id: question.id })
+        });
+        const data = await res.json();
+        if (res.ok || res.status === 409) {
+          setFollowData({ isFollowing: true, isMuted: false, followId: data.id || followData.followId });
+        }
+      } catch (err) {
+        console.error("Failed to follow", err);
+      }
+    } else {
+      setShowFollowMenu(!showFollowMenu);
+    }
+  };
+
+  const handleUnfollow = async () => {
+    try {
+      if (followData.followId) {
+        await fetch(`http://localhost:5000/api/follows/${followData.followId}`, {
+          method: "DELETE",
+          headers: { "user-id": "1" }
+        });
+      }
+      setFollowData({ isFollowing: false, isMuted: false, followId: null });
+      setShowFollowMenu(false);
+    } catch (err) {
+      console.error("Failed to unfollow", err);
+    }
+  };
+
+  const handleMuteToggle = async () => {
+    try {
+      if (followData.followId) {
+        await fetch(`http://localhost:5000/api/follows/${followData.followId}/mute`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", "user-id": "1" },
+          body: JSON.stringify({ is_muted: !followData.isMuted })
+        });
+      }
+      setFollowData(prev => ({ ...prev, isMuted: !prev.isMuted }));
+      setShowFollowMenu(false);
+    } catch (err) {
+      console.error("Failed to toggle mute", err);
+    }
+  };
 
   const toggleQVote = () => {
     if (question.id) upvoteQuestion(question.id);
@@ -138,7 +208,7 @@ function QuestionDetail() {
 
                 <div className="detail-hashtags">
                   {question.hashtags.map((tag) => (
-                    <span key={tag} className="hashtag">#{tag}</span>
+                    <Hashtag key={tag} tag={tag} />
                   ))}
                 </div>
 
@@ -152,6 +222,64 @@ function QuestionDetail() {
                   >
                     {question.bookmarked ? "★ Bookmarked" : "☆ Bookmark"}
                   </button>
+
+                  <div style={{ position: "relative" }} ref={followMenuRef}>
+                    <button
+                      className={`bookmark-btn ${followData.isFollowing ? "bookmarked" : ""}`}
+                      onClick={handleFollowClick}
+                      style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+                    >
+                      {followData.isFollowing ? (
+                        followData.isMuted ? (
+                          <>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+                            Muted
+                          </>
+                        ) : (
+                          <>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                            Following
+                          </>
+                        )
+                      ) : (
+                        <>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                          Follow
+                        </>
+                      )}
+                    </button>
+                    {showFollowMenu && (
+                      <div style={{
+                        position: "absolute", top: "100%", right: 0, marginTop: "4px",
+                        background: "#fff", border: "1px solid #e5e5e5", borderRadius: "6px",
+                        boxShadow: "0 4px 12px rgba(0,0,0,0.1)", zIndex: 10, width: "160px",
+                        display: "flex", flexDirection: "column", padding: "4px 0"
+                      }}>
+                        <button
+                          onClick={handleMuteToggle}
+                          style={{
+                            background: "none", border: "none", width: "100%", textAlign: "left",
+                            padding: "8px 12px", fontSize: "13px", cursor: "pointer", color: "#1a1a1a"
+                          }}
+                          onMouseOver={e => e.currentTarget.style.background = "#f5f5f5"}
+                          onMouseOut={e => e.currentTarget.style.background = "none"}
+                        >
+                          {followData.isMuted ? "Unmute notifications" : "Mute notifications"}
+                        </button>
+                        <button
+                          onClick={handleUnfollow}
+                          style={{
+                            background: "none", border: "none", width: "100%", textAlign: "left",
+                            padding: "8px 12px", fontSize: "13px", cursor: "pointer", color: "#ef4444"
+                          }}
+                          onMouseOver={e => e.currentTarget.style.background = "#f5f5f5"}
+                          onMouseOut={e => e.currentTarget.style.background = "none"}
+                        >
+                          Unfollow
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

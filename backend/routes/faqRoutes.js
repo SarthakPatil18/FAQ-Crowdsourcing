@@ -5,6 +5,8 @@ const { isMongoAvailable } = require("../db/mongo");
 const { getSQLiteDb } = require("../db/sqlite");
 const FAQ = require("../models/FAQ");
 const { extractKeywords } = require("../services/syncService");
+const { autoFollow } = require("../services/followService");
+const { dispatchNotification } = require("../services/notificationService");
 
 router.get("/", async (req, res) => {
   try {
@@ -68,6 +70,22 @@ router.post("/", async (req, res) => {
         keywords
       });
 
+      await autoFollow(
+        req.body.user_id || req.headers['user-id'],
+        'question',
+        faq.id || faq._id.toString()
+      );
+
+      for (const tag of keywords) {
+        await dispatchNotification({
+          eventType: 'new_question',
+          triggeredByUserId: req.body.user_id || req.headers['user-id'] || 1,
+          followableType: 'tag',
+          followableId: tag,
+          message: `New question under #${tag}: ${question.substring(0, 50)}`
+        });
+      }
+
       return res.status(201).json({
         storage: "mongodb",
         data: faq
@@ -90,6 +108,22 @@ router.post("/", async (req, res) => {
       answer.trim(),
       keywords.join(",")
     );
+
+    await autoFollow(
+      req.body.user_id || req.headers['user-id'],
+      'question',
+      result.lastID
+    );
+
+    for (const tag of keywords) {
+      await dispatchNotification({
+        eventType: 'new_question',
+        triggeredByUserId: req.body.user_id || req.headers['user-id'] || 1,
+        followableType: 'tag',
+        followableId: tag,
+        message: `New question under #${tag}: ${question.substring(0, 50)}`
+      });
+    }
 
     return res.status(201).json({
       storage: "sqlite",
