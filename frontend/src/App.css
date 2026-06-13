@@ -182,3 +182,16 @@
     border-right-color: var(--border);
   }
 }
+
+/* Dark Mode Overrides */
+[data-theme="dark"] {
+  --bg-page:        #1a1a1a;
+  --bg-sidebar:     #0d0d0d;
+  --bg-white:       #242424;
+  --bg-cta:         #151515;
+  --bg-input:       #2a2a2a;
+  --border:         #333333;
+  --text-primary:   #f0f0f0;
+  --text-secondary: #999999;
+}
+

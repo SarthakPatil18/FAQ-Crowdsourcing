@@ -3,8 +3,6 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 
-const { GoogleGenAI } = require("@google/genai");
-
 const { connectMongo, isMongoAvailable } = require("./db/mongo");
 const { connectSQLite } = require("./db/sqlite");
 const { startSyncPipeline, runSyncPipeline } = require("./services/syncService");
@@ -12,15 +10,16 @@ const { startSyncPipeline, runSyncPipeline } = require("./services/syncService")
 const faqRoutes = require("./routes/faqRoutes");
 const queryRoutes = require("./routes/queryRoutes");
 const searchRoutes = require("./routes/searchRoutes");
+ feature/follow-button
 const followRoutes = require("./routes/followRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 
+const statsRoutes = require("./routes/statsRoutes");
+const aiRoutes = require("./routes/aiRoutes");
+ main
+
 const app = express();
 
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-});
-console.log("Gemini key found:", !!process.env.GEMINI_API_KEY);
 app.use(cors());
 app.use(express.json());
 
@@ -51,47 +50,16 @@ app.get("/health", (req, res) => {
   });
 });
 
-
-app.post("/api/summary", async (req, res) => {
-  try {
-    const { question, answers } = req.body;
-
-    const prompt = `
-Summarize this FAQ discussion.
-
-Question:
-${question}
-
-Answers:
-${answers.join("\n")}
-
-Return:
-- 3 bullet points
-- Maximum 100 words
-`;
-
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
-    });
-
-    res.json({
-      summary: response.text,
-    });
-  } catch (error) {
-    console.error(error);
-
-    res.status(500).json({
-      error: "Failed to generate summary",
-    });
-  }
-});
-
 app.use("/api/faqs", faqRoutes);
 app.use("/api/queries", queryRoutes);
 app.use("/api/search", searchRoutes);
+feature/follow-button
 app.use("/api/follows", followRoutes);
 app.use("/api/notifications", notificationRoutes);
+
+app.use("/api/stats", statsRoutes);
+app.use("/api", aiRoutes);
+ main
 
 async function bootstrap() {
   await connectSQLite();
