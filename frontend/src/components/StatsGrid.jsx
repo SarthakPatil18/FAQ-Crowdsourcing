@@ -3,19 +3,19 @@ const stats = [
     icon: "💬",
     value: "12.8K",
     label: "Questions Asked",
-    color: "blue",
+    color: "black",
   },
   {
     icon: "👥",
     value: "3.2K",
     label: "Active Members",
-    color: "green",
+    color: "black",
   },
   {
     icon: "📈",
     value: "42K",
     label: "Answers Posted",
-    color: "orange",
+    color: "black",
   },
 ];
 
