@@ -14,7 +14,6 @@ const { startSyncPipeline, runSyncPipeline } = require("./services/syncService")
 const faqRoutes = require("./routes/faqRoutes");
 const queryRoutes = require("./routes/queryRoutes");
 const searchRoutes = require("./routes/searchRoutes");
- feature/follow-button
 const followRoutes = require("./routes/followRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 
@@ -66,7 +65,6 @@ app.use("/api/bookmarks", bookmarkRoutes);
 app.use("/api/stats", statsRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api", aiRoutes);
- main
 
 async function bootstrap() {
   await connectSQLite();
