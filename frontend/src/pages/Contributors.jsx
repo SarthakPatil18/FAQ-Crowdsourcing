@@ -1,49 +1,28 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
 import AskQuestionModal from "../components/AskQuestionModal";
 import { useFAQ } from "../context/FAQContext";
-import { fetchLeaderboard } from "../api/faqApi";
 
 function Contributors() {
   const [showModal, setShowModal] = useState(false);
   const { contributors } = useFAQ();
-  const [leaderboardUsers, setLeaderboardUsers] = useState([]);
 
-  useEffect(() => {
-    const loadLeaderboard = async () => {
-      try {
-        const response = await fetchLeaderboard();
-        setLeaderboardUsers(response.data || []);
-      } catch (err) {
-        console.warn("Leaderboard API failed. Using local contributors:", err.message);
-      }
+  // Top 6 contributors for the cards
+  const topContributors = contributors.slice(0, 6).map((c, idx) => {
+    const medals = ["🥇", "🥈", "🥉"];
+    return {
+      ...c,
+      rank: idx + 1,
+      medal: medals[idx] || ""
     };
+  });
 
-    loadLeaderboard();
-  }, []);
-
-  const sourceContributors =
-    leaderboardUsers.length > 0
-      ? leaderboardUsers.map((user, index) => ({
-          rank: index + 1,
-          name: user.name,
-          avatar: user.name?.charAt(0).toUpperCase() || "U",
-          answers: user.answersCount || 0,
-          questions: user.questionsCount || 0,
-          reputation: user.reputation || 0,
-          tier:
-            user.reputation >= 1000
-              ? "gold"
-              : user.reputation >= 500
-                ? "silver"
-                : "bronze",
-          medal: ["🥇", "🥈", "🥉"][index] || ""
-        }))
-      : contributors;
-
-  const topContributors = sourceContributors.slice(0, 6);
-  const leaderboard = sourceContributors.slice(0, 10);
+  // Top 10 contributors for the full leaderboard list
+  const leaderboard = contributors.slice(0, 10).map((c, idx) => ({
+    ...c,
+    rank: idx + 1
+  }));
 
   return (
     <>

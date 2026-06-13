@@ -4,9 +4,7 @@ import {
   submitQuery,
   submitAnswer,
   toggleVote,
-  toggleBookmarkApi,
-  fetchCategories,
-  searchFaq
+  toggleBookmarkApi
 } from "../api/faqApi";
 
 const FAQContext = createContext();
@@ -268,7 +266,6 @@ export function FAQProvider({ children }) {
   });
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [backendCategories, setBackendCategories] = useState([]);
 
   useEffect(() => {
     if (!backendOnline) {
@@ -309,22 +306,6 @@ export function FAQProvider({ children }) {
     };
 
     loadFromBackend();
-  }, []);
-
-  useEffect(() => {
-    const loadCategories = async () => {
-      try {
-        const response = await fetchCategories();
-
-        if (response.data && response.data.length > 0) {
-          setBackendCategories(response.data);
-        }
-      } catch (err) {
-        console.warn("Category API unavailable. Using local categories:", err.message);
-      }
-    };
-
-    loadCategories();
   }, []);
 
   const addQuestion = async (title, category, description, hashtagsString) => {
@@ -573,15 +554,6 @@ export function FAQProvider({ children }) {
 
   // Get dynamic categories list with correct question count
   const getDynamicCategories = () => {
-    if (backendCategories.length > 0) {
-      return backendCategories.map((cat) => ({
-        name: cat.name,
-        icon: "📁",
-        color: "blue",
-        description: `Questions related to ${cat.name}`,
-        questions: cat.questions
-      }));
-    }
     return initialCategories.map((cat) => {
       const count = questions.filter((q) => q.category === cat.name).length;
       // Merge with initial offset counts to make it feel populated

@@ -2,10 +2,6 @@ require("dotenv").config();
 
 const express = require("express");
 const cors = require("cors");
-const helmet = require("helmet");
-const compression = require("compression");
-const rateLimit = require("express-rate-limit");
-const morgan = require("morgan");
 
 const { connectMongo, isMongoAvailable } = require("./db/mongo");
 const { connectSQLite } = require("./db/sqlite");
@@ -19,41 +15,11 @@ const aiRoutes = require("./routes/aiRoutes");
 const answerRoutes = require("./routes/answerRoutes");
 const voteRoutes = require("./routes/voteRoutes");
 const bookmarkRoutes = require("./routes/bookmarkRoutes");
-const authRoutes = require("./routes/authRoutes");
-const userRoutes = require("./routes/userRoutes");
-const { optionalAuth } = require("./middleware/auth");
-const { notFound, errorHandler } = require("./middleware/errorHandler");
-const peerAnswerRoutes = require("./routes/peerAnswerRoutes");
-const recommendationRoutes = require("./routes/recommendationRoutes");
 
 const app = express();
 
-app.use(helmet());
-app.use(compression());
-app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
-
-app.use(
-  cors({
-    origin: process.env.CORS_ORIGIN || "http://localhost:5173",
-    credentials: true
-  })
-);
-
-app.use(
-  rateLimit({
-    windowMs: Number(process.env.RATE_LIMIT_WINDOW_MS || 900000),
-    max: Number(process.env.RATE_LIMIT_MAX || 300),
-    standardHeaders: true,
-    legacyHeaders: false
-  })
-);
-
-app.use(
-  express.json({
-    limit: "1mb"
-  })
-);
-app.use(optionalAuth);
+app.use(cors());
+app.use(express.json());
 
 app.get("/", (req, res) => {
   res.json({
@@ -82,8 +48,6 @@ app.get("/health", (req, res) => {
   });
 });
 
-app.use("/api/auth", authRoutes);
-app.use("/api/users", userRoutes);
 app.use("/api/faqs", faqRoutes);
 app.use("/api/queries", queryRoutes);
 app.use("/api/search", searchRoutes);
@@ -91,13 +55,7 @@ app.use("/api/answers", answerRoutes);
 app.use("/api/votes", voteRoutes);
 app.use("/api/bookmarks", bookmarkRoutes);
 app.use("/api/stats", statsRoutes);
-app.use("/api/peer-answers", peerAnswerRoutes);
-app.use("/api/recommendations", recommendationRoutes);
 app.use("/api", aiRoutes);
-
-app.use(notFound);
-app.use(errorHandler);
-
 
 async function bootstrap() {
   await connectSQLite();
