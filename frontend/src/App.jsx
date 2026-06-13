@@ -7,6 +7,7 @@ import Categories from "./pages/Categories";
 import Contributors from "./pages/Contributors";
 import Bookmarks from "./pages/Bookmarks";
 import Profile from "./pages/Profile";
+import Subscription from "./pages/Subscription";
 
 function App() {
   return (
@@ -18,8 +19,8 @@ function App() {
       <Route path="/contributors" element={<Contributors />} />
       <Route path="/bookmarks" element={<Bookmarks />} />
       <Route path="/profile" element={<Profile />} />
+      <Route path="/subscription" element={<Subscription/>} />
     </Routes>
   );
 }
-
 export default App;
