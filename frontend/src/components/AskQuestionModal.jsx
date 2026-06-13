@@ -25,29 +25,33 @@ function AskQuestionModal({ open, onClose }) {
 
   if (!open) return null;
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!title.trim()) {
       setError("Question title is required.");
       return;
     }
+
     if (!category) {
       setError("Please select a topic category.");
       return;
     }
+
     if (!description.trim()) {
       setError("Question details are required.");
       return;
     }
 
-    addQuestion(title, category, description, hashtags);
-    
-    // Clear state
-    setTitle("");
-    setCategory("");
-    setDescription("");
-    setHashtags("");
-    setError("");
-    onClose();
+    try {
+      await addQuestion(title, category, description, hashtags || "");
+      setTitle("");
+      setCategory("");
+      setDescription("");
+      setHashtags("");
+      setError("");
+      onClose();
+    } catch (err) {
+      setError(err.message || "Failed to submit question.");
+    }
   };
 
   return (

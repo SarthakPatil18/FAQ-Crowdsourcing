@@ -12,6 +12,9 @@ const queryRoutes = require("./routes/queryRoutes");
 const searchRoutes = require("./routes/searchRoutes");
 const statsRoutes = require("./routes/statsRoutes");
 const aiRoutes = require("./routes/aiRoutes");
+const answerRoutes = require("./routes/answerRoutes");
+const voteRoutes = require("./routes/voteRoutes");
+const bookmarkRoutes = require("./routes/bookmarkRoutes");
 
 const app = express();
 
@@ -48,6 +51,9 @@ app.get("/health", (req, res) => {
 app.use("/api/faqs", faqRoutes);
 app.use("/api/queries", queryRoutes);
 app.use("/api/search", searchRoutes);
+app.use("/api/answers", answerRoutes);
+app.use("/api/votes", voteRoutes);
+app.use("/api/bookmarks", bookmarkRoutes);
 app.use("/api/stats", statsRoutes);
 app.use("/api", aiRoutes);
 
