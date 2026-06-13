@@ -21,30 +21,6 @@ const userQuerySchema = new mongoose.Schema(
       type: String,
       default: "frontend"
     },
-    userId: {
-      type: String,
-      default: "anonymous",
-      index: true
-    },
-    authorName: {
-      type: String,
-      default: "Anonymous"
-    },
-    category: {
-      type: String,
-      default: "General",
-      trim: true,
-      index: true
-    },
-    tags: {
-      type: [String],
-      default: []
-    },
-    description: {
-      type: String,
-      default: "",
-      trim: true
-    },
     promoted: {
       type: Boolean,
       default: false
@@ -55,25 +31,9 @@ const userQuerySchema = new mongoose.Schema(
   }
 );
 
-userQuerySchema.index(
-  {
-    question: "text",
-    answer: "text",
-    description: "text",
-    category: "text",
-    tags: "text"
-  },
-  {
-    weights: {
-      question: 10,
-      category: 6,
-      tags: 5,
-      description: 3,
-      answer: 2
-    }
-  }
-);
-
-userQuerySchema.index({ category: 1, status: 1 });
+userQuerySchema.index({
+  question: "text",
+  answer: "text"
+});
 
 module.exports = mongoose.model("UserQuery", userQuerySchema);

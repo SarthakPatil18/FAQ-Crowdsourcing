@@ -1,15 +1,9 @@
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
-
-function getToken() {
-  return localStorage.getItem("crowdfaq_token");
-}
+const API_BASE_URL = "http://localhost:5000/api";
 
 async function request(path, options = {}) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     headers: {
       "Content-Type": "application/json",
-      ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
       ...(options.headers || {})
     },
     ...options
@@ -32,19 +26,11 @@ export async function fetchQueries() {
   return request("/queries");
 }
 
-export async function searchFaq({ keyword, category = "All Categories", limit = 20 }) {
+export async function searchFaq(keyword) {
   return request("/search", {
     method: "POST",
-    body: JSON.stringify({
-      keyword,
-      category,
-      limit
-    })
+    body: JSON.stringify({ keyword })
   });
-}
-
-export async function fetchCategories() {
-  return request("/faqs/meta/categories");
 }
 
 export async function submitQuery(payload) {
@@ -96,55 +82,4 @@ export async function fetchActivityStats(range = "week") {
 
 export async function fetchHeatmapStats(range = "week") {
   return request(`/stats/heatmap?range=${range}`);
-}
-
-export async function registerUser(payload) {
-  return request("/auth/register", {
-    method: "POST",
-    body: JSON.stringify(payload)
-  });
-}
-
-export async function loginUser(payload) {
-  return request("/auth/login", {
-    method: "POST",
-    body: JSON.stringify(payload)
-  });
-}
-
-export async function fetchLeaderboard() {
-  return request("/users/leaderboard");
-}
-
-export async function fetchMe() {
-  return request("/users/me");
-}
-
-export async function generateSummaryApi(payload) {
-  return request("/summary", {
-    method: "POST",
-    body: JSON.stringify(payload)
-  });
-}
-
-export async function checkDuplicates(payload) {
-  return request("/duplicates", {
-    method: "POST",
-    body: JSON.stringify(payload)
-  });
-}
-
-export async function createPeerAnswer(payload) {
-  return request("/peer-answers", {
-    method: "POST",
-    body: JSON.stringify(payload)
-  });
-}
-
-export async function fetchPeerAnswers(faqId) {
-  return request(`/peer-answers/${faqId}`);
-}
-
-export async function fetchRecommendations(limit = 10) {
-  return request(`/recommendations?limit=${limit}`);
 }

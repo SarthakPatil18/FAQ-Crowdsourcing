@@ -6,30 +6,10 @@ const { getSQLiteDb } = require("../db/sqlite");
 const UserQuery = require("../models/UserQuery");
 const { runSyncPipeline } = require("../services/syncService");
 const { trackEvent } = require("../services/eventService");
-const { inferCategory, normalizeTags } = require("../services/categoryService");
-const { z } = require("zod");
-const { validate } = require("../middleware/validate");
 
-const createQuerySchema = z.object({
-  body: z.object({
-    question: z.string().min(3).max(500),
-    answer: z.string().max(3000).optional(),
-    description: z.string().max(3000).optional(),
-    category: z.string().max(100).optional(),
-    tags: z.array(z.string().max(40)).optional()
-  }),
-  params: z.object({}).optional(),
-  query: z.object({}).optional()
-});
-
-router.post("/", validate(createQuerySchema), async (req, res) => {
+router.post("/", async (req, res) => {
   try {
-    const { question, answer, category, tags, description } = req.body;
-
-    const inferredCategory =
-      category || inferCategory(`${question || ""} ${description || ""} ${answer || ""}`);
-
-    const normalizedTags = normalizeTags(tags || []);
+    const { question, answer } = req.body;
 
     if (!question || question.trim() === "") {
       return res.status(400).json({
@@ -53,13 +33,8 @@ router.post("/", validate(createQuerySchema), async (req, res) => {
       const query = await UserQuery.create({
         question: question.trim(),
         answer: answer ? answer.trim() : "",
-        description: description ? description.trim() : "",
-        category: inferredCategory,
-        tags: normalizedTags,
         status: answer ? "resolved" : "pending",
-        source: "frontend",
-        userId: req.user?.id || "anonymous",
-        authorName: req.user?.name || "Anonymous"
+        source: "frontend"
       });
 
       await trackEvent({
@@ -88,26 +63,16 @@ router.post("/", validate(createQuerySchema), async (req, res) => {
       INSERT INTO user_queries (
         question,
         answer,
-        description,
-        category,
-        tags,
         status,
         source,
-        user_id,
-        author_name,
         synced_to_mongo
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+      VALUES (?, ?, ?, ?, 0)
       `,
       question.trim(),
       answer ? answer.trim() : "",
-      description ? description.trim() : "",
-      inferredCategory,
-      normalizedTags.join(","),
       answer ? "resolved" : "pending",
-      "frontend",
-      req.user?.id || "anonymous",
-      req.user?.name || "Anonymous"
+      "frontend"
     );
 
     await trackEvent({

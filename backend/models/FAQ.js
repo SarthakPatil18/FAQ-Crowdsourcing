@@ -16,20 +16,6 @@ const faqSchema = new mongoose.Schema(
       type: [String],
       default: []
     },
-    category: {
-      type: String,
-      default: "General",
-      trim: true,
-      index: true
-    },
-    tags: {
-      type: [String],
-      default: []
-    },
-    searchBoost: {
-      type: Number,
-      default: 1
-    },
     sourceQueryId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "UserQuery",
@@ -41,26 +27,10 @@ const faqSchema = new mongoose.Schema(
   }
 );
 
-faqSchema.index(
-  {
-    question: "text",
-    answer: "text",
-    keywords: "text",
-    tags: "text",
-    category: "text"
-  },
-  {
-    weights: {
-      question: 10,
-      category: 6,
-      tags: 5,
-      keywords: 4,
-      answer: 2
-    }
-  }
-);
-
-faqSchema.index({ category: 1, createdAt: -1 });
-faqSchema.index({ tags: 1 });
+faqSchema.index({
+  question: "text",
+  answer: "text",
+  keywords: "text"
+});
 
 module.exports = mongoose.model("FAQ", faqSchema);
