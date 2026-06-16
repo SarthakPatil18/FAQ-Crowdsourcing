@@ -4,14 +4,17 @@ import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 import { FAQProvider } from "./context/FAQContext";
 import { ThemeProvider } from "./context/ThemeContext";
+import { AuthProvider } from "./context/AuthContext";
 import "./styles/style.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <BrowserRouter>
     <ThemeProvider>
-      <FAQProvider>
-        <App />
-      </FAQProvider>
+      <AuthProvider>
+        <FAQProvider>
+          <App />
+        </FAQProvider>
+      </AuthProvider>
     </ThemeProvider>
   </BrowserRouter>
 );

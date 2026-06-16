@@ -1,7 +1,8 @@
 import React, { useEffect, useRef } from "react";
 import { useFAQ } from "../context/FAQContext";
 import "./ProfileDropdown.css";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 // Tabler Icons represented as clean inline SVGs
 const UserIcon = () => (
@@ -54,15 +55,19 @@ const LogOutIcon = () => (
 
 function ProfileDropdown({ isOpen, onClose }) {
   const { contributors } = useFAQ();
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const dropdownRef = useRef(null);
 
-  // Retrieve current user dynamically from FAQ Context (mapped to mock user "Alex Chen")
-  const currentUser = contributors.find((c) => c.name === "Alex Chen") || {
-    name: "Alex Chen",
-    avatar: "A",
-    questions: 67,
-    answers: 198,
-    reputation: 8950,
+  if (!user) return null;
+
+  // Retrieve current user dynamically from FAQ Context (contributors list) or fall back to AuthContext properties
+  const currentUser = contributors.find((c) => c.name === user.name) || {
+    name: user.name,
+    avatar: user.name.charAt(0).toUpperCase(),
+    questions: user.questionsCount || 0,
+    answers: user.answersCount || 0,
+    reputation: user.reputation || 0,
   };
 
   // Attach outside click listener
@@ -90,7 +95,7 @@ function ProfileDropdown({ isOpen, onClose }) {
         <div className="profile-dropdown-avatar">{currentUser.avatar}</div>
         <div className="profile-dropdown-info">
           <h4>{currentUser.name}</h4>
-          <p>alex.chen@crowdfaq.com</p>
+          <p>{user.email}</p>
         </div>
       </div>
 
@@ -144,7 +149,7 @@ function ProfileDropdown({ isOpen, onClose }) {
         </li>
         <li className="dropdown-divider"></li>
         <li>
-          <a href="#logout" className="logout-btn" onClick={(e) => { e.preventDefault(); onClose(); }}>
+          <a href="#logout" className="logout-btn" onClick={(e) => { e.preventDefault(); logout(); navigate("/"); onClose(); }}>
             <LogOutIcon />
             <span>Sign Out</span>
           </a>

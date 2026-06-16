@@ -5,6 +5,7 @@ const { isMongoAvailable } = require("../db/mongo");
 const { getSQLiteDb } = require("../db/sqlite");
 const FAQ = require("../models/FAQ");
 const UserQuery = require("../models/UserQuery");
+const { trackEvent } = require("../services/eventService");
 
 router.post("/", async (req, res) => {
   try {
@@ -29,6 +30,16 @@ router.post("/", async (req, res) => {
     }
 
     const searchText = searchTerms.join(" ");
+
+    await trackEvent({
+      type: "search_performed",
+      userId: "anonymous",
+      targetType: "search",
+      targetId: searchText,
+      metadata: {
+        terms: searchTerms
+      }
+    });
 
     if (isMongoAvailable()) {
       const faqResults = await FAQ.find(

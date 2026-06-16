@@ -38,6 +38,79 @@ async function connectSQLite() {
     );
   `);
 
+await sqliteDb.exec(`
+  CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    mongo_id TEXT,
+    name TEXT NOT NULL,
+    email TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    questions_count INTEGER DEFAULT 0,
+    answers_count INTEGER DEFAULT 0,
+    reputation INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
+await sqliteDb.exec(`
+  CREATE TABLE IF NOT EXISTS answers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    mongo_id TEXT,
+    question_id TEXT,
+    query_id TEXT,
+    content TEXT NOT NULL,
+    author TEXT DEFAULT 'Community Member',
+    votes INTEGER DEFAULT 0,
+    is_best INTEGER DEFAULT 0,
+    synced_to_mongo INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
+  await sqliteDb.exec(`
+    CREATE TABLE IF NOT EXISTS votes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      mongo_id TEXT,
+      user_id TEXT DEFAULT 'anonymous',
+      target_type TEXT NOT NULL,
+      target_id TEXT NOT NULL,
+      value INTEGER DEFAULT 1,
+      synced_to_mongo INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, target_type, target_id)
+    );
+  `);
+
+  await sqliteDb.exec(`
+    CREATE TABLE IF NOT EXISTS bookmarks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      mongo_id TEXT,
+      user_id TEXT DEFAULT 'anonymous',
+      question_id TEXT NOT NULL,
+      synced_to_mongo INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, question_id)
+    );
+  `);
+
+  await sqliteDb.exec(`
+    CREATE TABLE IF NOT EXISTS events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      mongo_id TEXT,
+      type TEXT NOT NULL,
+      user_id TEXT DEFAULT 'anonymous',
+      target_type TEXT DEFAULT '',
+      target_id TEXT DEFAULT '',
+      metadata TEXT DEFAULT '{}',
+      synced_to_mongo INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
   console.log("SQLite fallback ready");
 }
 

@@ -2,6 +2,7 @@ const { isMongoAvailable } = require("../db/mongo");
 const { getSQLiteDb } = require("../db/sqlite");
 const UserQuery = require("../models/UserQuery");
 const FAQ = require("../models/FAQ");
+const User = require("../models/User");
 
 function extractKeywords(text) {
   if (!text) return [];
@@ -130,6 +131,44 @@ async function syncSQLiteToMongo() {
   if (!isMongoAvailable()) return;
 
   const db = getSQLiteDb();
+
+  // Sync users first so queries can associate correctly if needed
+  const unsyncedUsers = await db.all(`
+    SELECT *
+    FROM users
+    WHERE mongo_id IS NULL OR mongo_id = ''
+  `);
+
+  for (const row of unsyncedUsers) {
+    try {
+      const existingUser = await User.findOne({ email: row.email });
+      let mongoUser = existingUser;
+
+      if (!existingUser) {
+        mongoUser = await User.create({
+          name: row.name,
+          email: row.email,
+          password: row.password_hash,
+          questionsCount: row.questions_count,
+          answersCount: row.answers_count,
+          reputation: row.reputation
+        });
+      }
+
+      await db.run(
+        `
+        UPDATE users
+        SET mongo_id = ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+        `,
+        String(mongoUser._id),
+        row.id
+      );
+    } catch (syncErr) {
+      console.error(`User sync failed for email ${row.email}:`, syncErr.message);
+    }
+  }
 
   const unsyncedQueries = await db.all(`
     SELECT *

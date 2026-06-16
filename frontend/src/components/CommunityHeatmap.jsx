@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { fetchHeatmapStats } from "../api/faqApi";
 import "./CommunityHeatmap.css";
 
 const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -257,8 +258,43 @@ function CommunityHeatmap() {
   const cardRef = useRef(null);
   const dropdownRef = useRef(null);
 
+  const [heatmapData, setHeatmapData] = useState([]);
+  const [loadingHeatmap, setLoadingHeatmap] = useState(true);
+
+  useEffect(() => {
+    const loadHeatmap = async () => {
+      try {
+        setLoadingHeatmap(true);
+        const response = await fetchHeatmapStats(
+          selectedRange === "This Week" ? "week" : "month"
+        );
+        setHeatmapData(response.data || []);
+      } catch (err) {
+        console.warn("Heatmap API failed. Falling back to static heatmap:", err.message);
+        setHeatmapData([]);
+      } finally {
+        setLoadingHeatmap(false);
+      }
+    };
+
+    loadHeatmap();
+  }, [selectedRange]);
+
   // Get active dataset and trend
-  const currentDataMap = datasets[selectedRange];
+  const currentDataMap =
+    heatmapData.length > 0
+      ? heatmapData.reduce((acc, item) => {
+          acc[`${item.time}-${item.day}`] = {
+            ...item,
+            timeRange: timeRanges[item.time] || item.time,
+            intensity: Math.min(4, Math.ceil((item.interactions || 0) / 5)),
+            trendVal: item.interactions || 0,
+            trend: "+0.0%"
+          };
+          return acc;
+        }, {})
+      : datasets[selectedRange];
+
   const currentTrend = trendValues[selectedRange];
 
   // Calculate total interaction sum dynamically

@@ -283,3 +283,107 @@
   color: #ef4444;
   border-color: #fecaca;
 }
+
+/* =========================
+   DARK MODE - HEATMAP
+   ========================= */
+
+[data-theme="dark"] .heatmap-card {
+  background: #000000;
+  border-color: #222222;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="dark"] .heatmap-title-group h2,
+[data-theme="dark"] .heatmap-total-interactions,
+[data-theme="dark"] .heatmap-tooltip-value {
+  color: #ffffff;
+}
+
+[data-theme="dark"] .heatmap-title-group p,
+[data-theme="dark"] .heatmap-stat-label,
+[data-theme="dark"] .heatmap-time-label,
+[data-theme="dark"] .heatmap-day-label,
+[data-theme="dark"] .heatmap-tooltip-label,
+[data-theme="dark"] .heatmap-tooltip-footer-label {
+  color: #9ca3af;
+}
+
+/* Dropdown */
+[data-theme="dark"] .heatmap-dropdown {
+  border-color: #374151;
+  color: #d1d5db;
+}
+
+[data-theme="dark"] .heatmap-dropdown:hover {
+  background: #111827;
+  border-color: #4b5563;
+}
+
+[data-theme="dark"] .heatmap-dropdown-icon {
+  color: #d1d5db;
+}
+
+[data-theme="dark"] .heatmap-dropdown-list {
+  background: #111111;
+  border-color: #222222;
+}
+
+[data-theme="dark"] .heatmap-dropdown-item {
+  color: #d1d5db;
+}
+
+[data-theme="dark"] .heatmap-dropdown-item:hover {
+  background: #1f2937;
+  color: #ffffff;
+}
+
+[data-theme="dark"] .heatmap-dropdown-item.active {
+  background: #1e3a8a;
+  color: #ffffff;
+}
+
+/* Tooltip */
+[data-theme="dark"] .heatmap-tooltip {
+  background: #111111;
+  border-color: #222222;
+}
+
+[data-theme="dark"] .heatmap-tooltip-time {
+  color: #9ca3af;
+}
+
+[data-theme="dark"] .heatmap-tooltip-stat-row:last-of-type {
+  border-bottom-color: #374151;
+}
+
+/* Trend badges */
+[data-theme="dark"] .heatmap-trend-badge {
+  background: #052e16;
+  color: #4ade80;
+  border-color: #166534;
+}
+
+[data-theme="dark"] .heatmap-trend-badge.negative {
+  background: #450a0a;
+  color: #f87171;
+  border-color: #991b1b;
+}
+
+[data-theme="dark"] .heatmap-tooltip-percentage {
+  background: #052e16;
+  color: #4ade80;
+  border-color: #166534;
+}
+
+[data-theme="dark"] .heatmap-tooltip-percentage.negative {
+  background: #450a0a;
+  color: #f87171;
+  border-color: #991b1b;
+}
+
+/* Heatmap cell hover */
+[data-theme="dark"] .heatmap-cell:hover {
+  border-color: #60a5fa;
+  box-shadow: 0 4px 10px rgba(96, 165, 250, 0.25);
+}

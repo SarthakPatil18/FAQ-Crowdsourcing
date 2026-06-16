@@ -5,10 +5,14 @@ const { isMongoAvailable } = require("../db/mongo");
 const { getSQLiteDb } = require("../db/sqlite");
 const UserQuery = require("../models/UserQuery");
 const { runSyncPipeline } = require("../services/syncService");
+const { trackEvent } = require("../services/eventService");
 
 router.post("/", async (req, res) => {
+  console.log("POST /queries HIT");
   try {
-    const { question, answer } = req.body;
+    const { question, answer, description } = req.body;
+
+    console.log("BODY:", req.body);
 
     if (!question || question.trim() === "") {
       return res.status(400).json({
@@ -31,12 +35,42 @@ router.post("/", async (req, res) => {
     if (isMongoAvailable()) {
       const query = await UserQuery.create({
         question: question.trim(),
+        description: description ? description.trim() : "",
         answer: answer ? answer.trim() : "",
         status: answer ? "resolved" : "pending",
         source: "frontend"
       });
+      console.log("Saved Mongo Query:", query._id);
+
+      await trackEvent({
+        type: answer ? "faq_created" : "question_created",
+        userId: "anonymous",
+        targetType: "query",
+        targetId: String(query._id),
+        metadata: {
+          storage: "mongodb",
+          hasAnswer: Boolean(answer)
+        }
+      });
 
       await runSyncPipeline();
+
+      await autoFollow(
+        req.body.user_id || req.headers['user-id'],
+        'question',
+        query.id || query._id.toString()
+      );
+
+      const keywords = extractKeywords(`${question.trim()}`);
+      for (const tag of keywords) {
+        await dispatchNotification({
+          eventType: 'new_question',
+          triggeredByUserId: req.body.user_id || req.headers['user-id'] || 1,
+          followableType: 'tag',
+          followableId: tag,
+          message: `New question under #${tag}: ${question.substring(0, 50)}`
+        });
+      }
 
       return res.status(201).json({
         storage: "mongodb",
@@ -63,7 +97,35 @@ router.post("/", async (req, res) => {
       "frontend"
     );
 
+    await trackEvent({
+      type: answer ? "faq_created" : "question_created",
+      userId: "anonymous",
+      targetType: "query",
+      targetId: String(result.lastID),
+      metadata: {
+        storage: "sqlite",
+        hasAnswer: Boolean(answer)
+      }
+    });
+
     await runSyncPipeline();
+
+    await autoFollow(
+      req.body.user_id || req.headers['user-id'],
+      'question',
+      result.lastID
+    );
+
+    const keywords = extractKeywords(`${question.trim()}`);
+    for (const tag of keywords) {
+      await dispatchNotification({
+        eventType: 'new_question',
+        triggeredByUserId: req.body.user_id || req.headers['user-id'] || 1,
+        followableType: 'tag',
+        followableId: tag,
+        message: `New question under #${tag}: ${question.substring(0, 50)}`
+      });
+    }
 
     return res.status(201).json({
       storage: "sqlite",
@@ -150,6 +212,21 @@ router.patch("/:id/resolve", async (req, res) => {
 
       await runSyncPipeline();
 
+      await autoFollow(
+        req.body.user_id || req.headers['user-id'],
+        'question',
+        query.id || query._id.toString()
+      );
+
+      const username = req.headers['username'] || `User ${req.body.user_id || req.headers['user-id'] || 'Someone'}`;
+      await dispatchNotification({
+        eventType: 'question_answered',
+        triggeredByUserId: req.body.user_id || req.headers['user-id'] || 1,
+        followableType: 'question',
+        followableId: req.params.id,
+        message: `${username} answered / commented on: ${query.question.substring(0, 50)}`
+      });
+
       return res.json({
         storage: "mongodb",
         data: query
@@ -187,6 +264,21 @@ router.patch("/:id/resolve", async (req, res) => {
       `,
       req.params.id
     );
+
+    await autoFollow(
+      req.body.user_id || req.headers['user-id'],
+      'question',
+      req.params.id
+    );
+
+    const username = req.headers['username'] || `User ${req.body.user_id || req.headers['user-id'] || 'Someone'}`;
+    await dispatchNotification({
+      eventType: 'question_answered',
+      triggeredByUserId: req.body.user_id || req.headers['user-id'] || 1,
+      followableType: 'question',
+      followableId: req.params.id,
+      message: `${username} answered / commented on: ${updated.question.substring(0, 50)}`
+    });
 
     return res.json({
       storage: "sqlite",

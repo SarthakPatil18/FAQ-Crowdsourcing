@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
 import AskQuestionModal from "../components/AskQuestionModal";
+import Hashtag from "../components/Hashtag";
 import { useFAQ } from "../context/FAQContext";
 
 const filters = ["All", "Unanswered", "Most Voted", "Newest"];
@@ -135,7 +136,7 @@ function Questions() {
                       <div className="q-footer">
                         <div className="q-hashtags">
                           {q.hashtags.map((tag) => (
-                            <span key={tag} className="hashtag">#{tag}</span>
+                            <Hashtag key={tag} tag={tag} />
                           ))}
                         </div>
                         <div className="q-meta">

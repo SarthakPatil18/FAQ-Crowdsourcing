@@ -8,6 +8,7 @@ async function connectMongo() {
 
     mongoAvailable = true;
     console.log("MongoDB connected");
+    console.log("Database name:", mongoose.connection.name);
 
     mongoose.connection.on("disconnected", () => {
       mongoAvailable = false;
