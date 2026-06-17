@@ -262,7 +262,6 @@ export function FAQProvider({ children }) {
     const saved = localStorage.getItem("crowdfaq_questions");
     return saved ? JSON.parse(saved) : initialQuestions;
   });
-  const [questions, setQuestions] = useState(initialQuestions);
   const [backendOnline, setBackendOnline] = useState(false);
   const [loadingQuestions, setLoadingQuestions] = useState(true);
 
@@ -485,55 +484,6 @@ export function FAQProvider({ children }) {
       );
     }
   };
-
-  const addAnswer = async (questionId, content) => {
-    const authorName = user ? user.name : "Guest";
-    const newAnswer = {
-      id: Date.now(),
-      author: authorName,
-      avatar: authorName.charAt(0).toUpperCase(),
-      content: content.trim(),
-      votes: 1,
-      time: "Just now",
-      isBest: false,
-      voted: false
-    };
-
-    setQuestions((prev) =>
-      prev.map((q) => {
-        if (q.id === Number(questionId) || q.id === questionId) {
-          return {
-            ...q,
-            views: q.views + 5,
-            answers: [...q.answers, newAnswer]
-          };
-        }
-        return q;
-      })
-    );
-
-    // Reward reputation and answers count
-    setContributors((prev) => {
-      const exists = prev.some((c) => c.name === authorName);
-      if (exists) {
-        return prev
-          .map((c) =>
-            c.name === authorName
-              ? { ...c, answers: c.answers + 1, reputation: c.reputation + 15 }
-              : c
-          )
-          .sort((a, b) => b.reputation - a.reputation)
-          .map((c, i) => ({ ...c, rank: i + 1 }));
-      } else {
-        const list = [
-          ...prev,
-          { rank: 99, name: authorName, avatar: authorName.charAt(0).toUpperCase(), answers: 1, questions: 0, reputation: 15, tier: "bronze" }
-        ];
-        return list
-          .sort((a, b) => b.reputation - a.reputation)
-          .map((c, i) => ({ ...c, rank: i + 1 }));
-      }
-    });
   const addAnswer = async (questionId, content, author = "Community Member") => {
     const cleanContent = content.trim();
 
