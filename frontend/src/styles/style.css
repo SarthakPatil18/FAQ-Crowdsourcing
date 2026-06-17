@@ -30,7 +30,7 @@
   --bg-page:        #f5f4f0;
   --bg-sidebar:     #f5f4f0;
   --bg-white:       #ffffff;
-  --bg-cta:         #ffffff;
+  --bg-cta:         #111827;
   --bg-input:       #ffffff;
   --bg-hover:       #ffffff;
   --bg-table-head:  #f9fafb;
@@ -245,7 +245,7 @@ input, select, textarea {
 .sidebar {
   width: var(--sidebar-width);
   background: var(--bg-sidebar);
-  color: var(--text-white);
+  color: var(--text-primary);
   position: fixed;
   top: 0;
   left: 0;
@@ -258,6 +258,7 @@ input, select, textarea {
   overflow-y: auto;
   -ms-overflow-style: none;  /* IE and Edge */
   scrollbar-width: none;  /* Firefox */
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .sidebar::-webkit-scrollbar {
@@ -265,13 +266,24 @@ input, select, textarea {
 }
 
 .main-wrapper {
-  margin-left: 220px;
-  width: calc(100% - 220px);
+  margin-left: var(--sidebar-width);
+  width: calc(100% - var(--sidebar-width));
   min-height: 100vh;
   background: var(--bg-page);
   display: flex;
   flex-direction: column;
   flex: 1;
+  transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Collapsed state rules */
+body.sidebar-collapsed .sidebar {
+  transform: translateX(-100%);
+}
+
+body.sidebar-collapsed .main-wrapper {
+  margin-left: 0;
+  width: 100%;
 }
 
 /* ── SIDEBAR LOGO ── */
@@ -284,23 +296,31 @@ input, select, textarea {
 
 .logo-icon {
   font-size: 20px;
-  color: var(--text-white);
+  color: #3b82f6;
 }
 
 .logo-text {
   font-size: 18px;
   font-weight: 700;
   letter-spacing: -0.3px;
-  color: var(--text-white);
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  color: transparent;
 }
 
-/* Dark mode logo */
+/* Dark mode logo overrides */
 [data-theme="dark"] .logo-icon {
-  color: #ffffff;
+  color: #3b82f6;
 }
 
 [data-theme="dark"] .logo-text {
-  color: #ffffff;
+  background: linear-gradient(135deg, #60a5fa, #a78bfa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  color: transparent;
 }
 
 /* ── SIDEBAR NAV ── */
@@ -318,7 +338,7 @@ input, select, textarea {
   border-radius: var(--radius-sm);
   font-size: 15px;
   font-weight: 500;
-  color: #aaaaaa;
+  color: #555555; /* Higher contrast in light mode */
   transition: background 0.15s, color 0.15s;
 }
 
@@ -330,6 +350,7 @@ input, select, textarea {
 .nav-item.active {
   background: #ffffff;
   color: #111827;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
 }
 
 .nav-icon {
@@ -339,20 +360,19 @@ input, select, textarea {
 }
 
 /* Dark mode sidebar nav */
-
 [data-theme="dark"] .nav-item {
   color: #9ca3af;
 }
 
 [data-theme="dark"] .nav-item:hover {
-  background: #111111;
+  background: #242424;
   color: #ffffff;
 }
 
 [data-theme="dark"] .nav-item.active {
-  background: #000000;
+  background: #242424;
   color: #ffffff;
-  border: 1px solid #222222; /* optional */
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
 }
 
 /* ── 4. TOPBAR ── */
@@ -4223,6 +4243,155 @@ input, select, textarea {
     gap: 32px !important;
   }
   .landing-container .landing-stats-item:not(:last-child)::after {
+    display: none !important;
+  }
+}
+
+/* ── SIDEBAR TOGGLE & DIRECT LOGOUT BUTTONS ── */
+.sidebar-toggle {
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  transition: background 0.2s;
+  margin-right: 12px;
+}
+.sidebar-toggle:hover {
+  background: var(--bg-hover);
+}
+
+.logout-btn-direct {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  transition: background 0.2s, color 0.2s;
+}
+.logout-btn-direct:hover {
+  background: rgba(239, 68, 68, 0.08);
+  color: var(--accent-red);
+}
+
+/* ── SPLIT AUTH PAGE LAYOUT ── */
+.auth-page-split-container {
+  display: flex;
+  min-height: 100vh;
+  width: 100vw;
+  background: var(--bg-page);
+  overflow-x: hidden;
+}
+
+.auth-left-panel {
+  flex: 1.1;
+  background: linear-gradient(135deg, #0f172a, #1e1b4b);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 60px;
+  position: relative;
+  overflow: hidden;
+  color: #ffffff;
+}
+
+.auth-left-content {
+  z-index: 2;
+  max-width: 500px;
+  margin-top: 40px;
+}
+
+.auth-left-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 24px;
+  font-weight: 800;
+  margin-bottom: 48px;
+}
+
+.auth-left-logo svg {
+  color: #60a5fa;
+}
+
+.auth-left-content h1 {
+  font-family: var(--font-heading);
+  font-size: 42px;
+  font-weight: 800;
+  line-height: 1.2;
+  margin-bottom: 20px;
+  background: linear-gradient(to right, #ffffff, #cbd5e1);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.auth-left-content p {
+  font-size: 16px;
+  line-height: 1.6;
+  color: #94a3b8;
+}
+
+.auth-left-image-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  margin-top: 20px;
+}
+
+.auth-left-image {
+  max-width: 85%;
+  max-height: 400px;
+  object-fit: contain;
+  filter: drop-shadow(0 20px 40px rgba(0, 0, 0, 0.4));
+  animation: floatIllustration 6s ease-in-out infinite;
+}
+
+@keyframes floatIllustration {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+.auth-right-panel {
+  flex: 0.9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  padding: 40px;
+  background: var(--bg-page);
+  z-index: 2;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1024px) {
+  .auth-left-panel {
+    display: none;
+  }
+  .auth-right-panel {
+    flex: 1;
+  }
+}
+
+@media (max-width: 768px) {
+  /* Toggle override for mobile overlay */
+  body:not(.sidebar-collapsed) .sidebar {
+    display: flex !important;
+    transform: translateX(0) !important;
+    width: 240px !important;
+    box-shadow: 0 0 30px rgba(0,0,0,0.25) !important;
+  }
+  body.sidebar-collapsed .sidebar {
     display: none !important;
   }
 }
