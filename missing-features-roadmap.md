@@ -1,772 +1,494 @@
-
-# Missing Features Roadmap — CrowdFAQ Knowledge Platform
+# Missing Features Roadmap — CrowdFAQ Final Issues Tracker
 
 _Last updated: 2026-06-19_
 
-## Current Final State Snapshot
+## Purpose
 
-CrowdFAQ is currently a full-stack FAQ crowdsourcing platform with:
+This document is the source of truth for final remaining issues in the CrowdFAQ codebase.
 
-- React + Vite frontend
-- Express.js backend
-- MongoDB primary datastore
-- SQLite fallback datastore
-- JWT authentication
-- FAQ/query/answer CRUD flows
-- Voting, bookmarks, follows, notifications
-- Activity and heatmap stats
+The original purpose of this file was to compare the codebase against the feasibility feature list and track missing features. The current codebase has since implemented or scaffolded most backend roadmap capabilities. Therefore, this document now tracks:
+
+1. Features that are still genuinely missing.
+2. Features that are backend-complete but frontend-incomplete.
+3. Contract/documentation/testing issues that must be resolved before release.
+4. Stabilization tasks needed to make the project production-ready.
+
+Use this file before any roadmap-related implementation. After resolving an item, update its status, evidence, remaining gaps, and affected files.
+
+---
+
+## Status Definitions
+
+### Fully Complete
+
+All relevant layers are done:
+
+- Frontend UI/API client
+- Backend route/service
+- MongoDB model or fields, if persisted
+- SQLite table/migration, if persisted
+- Validation
+- Authorization
+- Tests
+- OpenAPI docs
+- Architecture docs
+
+### Backend Complete / Frontend Pending
+
+Backend routes, services, database schema, and tests exist, but the frontend either:
+
+- does not expose the feature,
+- still uses static/mock data,
+- lacks controls/buttons/pages,
+- or does not show backend state.
+
+### Stabilization Required
+
+Feature exists, but one or more of the following must be fixed:
+
+- response contract drift,
+- OpenAPI drift,
+- test gaps,
+- documentation drift,
+- AI fallback issues,
+- schema parity concerns,
+- edge-case validation.
+
+### Missing / Deferred
+
+Feature is not meaningfully implemented or intentionally deferred.
+
+---
+
+## Current Platform State
+
+### Fully Implemented Core
+
+- Authentication and JWT profile lookup
+- FAQ CRUD/search
+- User query/question lifecycle
+- Answer submission/retrieval
+- Voting
+- Bookmarks
+- Follows
+- Basic notifications
 - Admin overview and pending-query review
-- SQLite → MongoDB sync foundation
-- Gemini-based AI quick summaries
-- OpenAPI/Swagger docs route
+- Activity and heatmap stats
+- MongoDB primary persistence
+- SQLite fallback persistence
+- SQLite migrations
+- Sync foundation
+- AI summary endpoint
+- REST API and Swagger docs baseline
 
-The missing-feature roadmap below focuses only on features that are not yet fully implemented across frontend, backend, and database.
+### Backend-Implemented Advanced Features
 
----
-
-## Roadmap Principles
-
-1. **Stabilize core knowledge lifecycle first** — versioning, moderation, stale-content workflows, and exports should be added before advanced AI/RAG.
-2. **Prefer additive schema changes** — new tables/models should not break SQLite fallback compatibility.
-3. **Keep MongoDB and SQLite parity** — every new write feature must define both primary and fallback persistence.
-4. **Expose backend contracts before advanced UI polish** — backend APIs, validation, and tests should land before frontend expansion.
-5. **Avoid AI black boxes** — AI features should include audit fields, confidence scores, and human-review paths.
-
----
-
-## Phase 1 — Backend Completion for Near-Core Features
-
-Target: Complete missing or partial medium-impact features that directly improve the current FAQ workflow.
-
-### 1. Required Tagging Enforcement
-
-**Goal:** Make tags mandatory for selected content types.
-
-**Backend work:**
-
-- Update `faqRoutes.js` and `queryRoutes.js` validation schemas.
-- Enforce minimum tag count, e.g. `tags.length >= 1`.
-- Normalize tags through `categoryService.normalizeTags()`.
-- Add validation tests for empty, malformed, and excessive tags.
-
-**Database work:**
-
-- No new tables required.
-- Existing Mongo fields and SQLite `tags` columns are sufficient.
-
-**Frontend work:**
-
-- Make tag field required in ask/create forms.
-- Add inline validation and tag suggestions.
-
-**Acceptance criteria:**
-
-- FAQ/query creation fails with `VALIDATION_ERROR` when tags are missing.
-- Existing content without tags remains readable.
+- Answer verification support
+- Badge/milestone backend service
+- Contributor leaderboard route
+- Revision history and rollback backend support
+- Relevance decay and needs-update backend support
+- Export service: JSON, CSV, Markdown, PDF-style outputs
+- Import service and document/thread generation paths
+- Personalized FAQ recommendations
+- Learning paths
+- Learning journey stats
+- AI moderation
+- Duplicate detection and similarity scoring
+- Search analytics and knowledge gap aggregation
+- Chat/RAG route and chat log storage
+- FAQ translations
+- GraphQL route
+- Bounty system
+- Notification preferences
 
 ---
 
-### 2. Expert Verified Answer Badge
+## Final Remaining Issues
 
-**Goal:** Allow moderators/admins to mark an answer as verified.
-
-**Backend work:**
-
-- Add `isVerified`, `verifiedBy`, `verifiedAt`, and `verificationNote` to Answer model and SQLite `answers` table.
-- Add route: `PATCH /api/answers/:id/verify`.
-- Protect route with `requireRole("moderator", "admin")`.
-- Track verification event in `eventService`.
-- Notify answer author and followers.
-
-**Frontend work:**
-
-- Show verified badge in `QuestionDetail`.
-- Add moderator/admin verify action.
-
-**Acceptance criteria:**
-
-- Only moderators/admins can verify answers.
-- Verified answers are visually distinct and queryable.
-
----
-
-### 3. Simple Badge and Milestone Engine
-
-**Goal:** Convert existing badge fields into rule-driven achievements.
-
-**Backend work:**
-
-- Add `badgeService.js`.
-- Define rules for first question, first answer, 10 answers, 100 reputation, streak milestones.
-- Award badges after question/answer/vote events.
-- Prevent duplicate badge grants.
-
-**Database work:**
-
-- Existing Mongo `User.badges` and SQLite `users.badges` can be used initially.
-- Later migrate to normalized `user_badges` if needed.
-
-**Frontend work:**
-
-- Render earned badges from authenticated profile.
-- Add badge-earned toast.
-
-**Acceptance criteria:**
-
-- Badge rules are deterministic and covered by tests.
-- Badge state survives SQLite fallback and Mongo sync.
-
----
-
-### 4. Leaderboard API
-
-**Goal:** Support community heroes leaderboard from real backend data.
-
-**Backend work:**
-
-- Add route: `GET /api/contributors/leaderboard`.
-- Rank by reputation, answers count, verified answers, and recent activity.
-- Add pagination.
-- Add anti-gaming guardrails later.
-
-**Database work:**
-
-- Use existing user reputation/count fields initially.
-- Add indexes for `reputation`, `answers_count`, and `questions_count` in SQLite if needed.
-
-**Frontend work:**
-
-- Connect Contributors page to backend leaderboard API.
-
-**Acceptance criteria:**
-
-- Contributors page no longer depends on static/mock contributor ranking.
-
----
-
-## Phase 2 — Knowledge Maintenance and Governance
-
-Target: Add systems that keep FAQ content trustworthy and maintainable.
-
-### 5. Version History
-
-**Goal:** Preserve revisions for FAQs, queries, and answers.
-
-**Backend work:**
-
-- Add revision models/tables:
-  - `faq_revisions`
-  - `query_revisions`
-  - `answer_revisions`
-- Store previous content before updates/deletes.
-- Add routes:
-  - `GET /api/faqs/:id/revisions`
-  - `GET /api/answers/:id/revisions`
-
-**Frontend work:**
-
-- Add revision history panel for owners/moderators.
-
-**Acceptance criteria:**
-
-- Every update creates a revision entry.
-- Revision records include actor, timestamp, and changed fields.
-
----
-
-### 6. Transparent Diff Viewer
-
-**Goal:** Show old vs new content changes.
-
-**Backend work:**
-
-- Return revision pairs from version-history routes.
-- Optionally compute server-side text diffs.
-
-**Frontend work:**
-
-- Add visual diff UI using a mature diff library.
-
-**Acceptance criteria:**
-
-- Users can inspect what changed between two FAQ/answer versions.
-
----
-
-### 7. Rollback Functionality
-
-**Goal:** Allow admins/moderators to restore a previous revision.
-
-**Backend work:**
-
-- Add route: `POST /api/faqs/:id/revisions/:revisionId/rollback`.
-- Add matching route for answers.
-- Track rollback event.
-
-**Frontend work:**
-
-- Add rollback button in revision panel for authorized users.
-
-**Acceptance criteria:**
-
-- Rollback creates a new revision instead of overwriting history invisibly.
-
----
-
-### 8. Needs-Update Queue and Relevance Decay
-
-**Goal:** Detect stale content and route it to review.
-
-**Backend work:**
-
-- Add fields: `staleScore`, `lastReviewedAt`, `needsUpdate`, `updateReason`.
-- Add scheduled scoring job.
-- Add routes:
-  - `GET /api/admin/needs-update`
-  - `PATCH /api/faqs/:id/reviewed`
-  - `POST /api/faqs/:id/flag-stale`
-
-**Frontend work:**
-
-- Admin queue page.
-- “Still relevant?” feedback button.
-
-**Acceptance criteria:**
-
-- Stale FAQ candidates are visible to moderators/admins.
-
----
-
-## Phase 3 — Import, Export, and Interoperability
-
-Target: Make the knowledge base portable and easier to populate.
-
-### 9. Offline Export: JSON, CSV, Markdown
+## Issue 1 — Documentation File Naming Drift
 
 Status: Fully Complete
-Priority: Phase 3
-Difficulty: Medium
-Source: Product Requirements
+Priority: Critical
+Area: Documentation / LLM workflow
 
-Implemented Layers:
-- Frontend: Complete
-- Backend: Complete
-- MongoDB: Complete
-- SQLite: Complete
-- Tests: Complete
-- OpenAPI: Complete
+### Problem
 
-Current Evidence:
-- Added route: `GET /api/export`
-- Implemented file streaming in `backend/services/exportService.js` and `backend/routes/exportRoutes.js`
-- Tests added in `backend/tests/phases_3_and_4.test.js` and verified in `backend/tests/universal.postmerge.test.js`
+The repository contained or referenced both `missing-features-roadmap.md` and `missing_features_roadmap.md` along with suffix variations like `.updated.md`. This could confuse development and roadmap retrieval.
 
-Remaining Gaps:
-- None
+### Required Fix
 
-Last Updated:
-- 2026-06-19
+Choose one canonical filename.
+Recommended canonical name:
+- `missing-features-roadmap.md`
+- `architecture.md`
+- `prompt-template.md`
+
+Update all references across documentation files.
+
+### Acceptance Criteria
+
+- Only one roadmap filename is used in documentation.
+- Prompt template points to the canonical file.
+- Future LLM workflow instructions do not reference the old filename.
+
+### Resolution Evidence
+- Renamed `architecture.updated.md` to `architecture.md`.
+- Renamed `prompt-template.updated.md` to `prompt-template.md`.
+- Cleaned up all references to the old filenames across all files.
 
 ---
 
-### 10. Offline PDF Export
+## Issue 2 — API Response Contract Drift
 
 Status: Fully Complete
-Priority: Phase 3
-Difficulty: Medium
-Source: Product Requirements
+Priority: Critical
+Area: Backend / Frontend / Tests
 
-Implemented Layers:
-- Frontend: Complete
-- Backend: Complete
-- MongoDB: Complete
-- SQLite: Complete
-- Tests: Complete
-- OpenAPI: Complete
+### Problem
 
-Current Evidence:
-- PDF generation utilizing `pdfkit` service in `backend/services/exportService.js`
-- Route: `GET /api/export?format=pdf`
-- Tests added in `backend/tests/phases_3_and_4.test.js`
+Some routes returned different response shapes:
+- Standard JSON envelope: `{ status, storage, data, meta }`
+- Auth legacy shape: `{ status, storage, data, token, user }`
+- Bookmark action at top-level: `{ action: "created" }`
+- Raw export payloads for downloads
+- Some validation errors without standardized `{ status, code, message }`
 
-Remaining Gaps:
-- None
+### Required Fix
 
-Last Updated:
-- 2026-06-19
+Create and enforce a formal API response policy:
+1. Normal JSON routes return standard envelopes.
+2. Errors return standard error envelopes.
+3. Download/export routes are explicitly allowed to return raw responses.
+4. Auth responses should be normalized to one canonical shape.
+5. Frontend API client should handle current compatibility during migration.
 
----
+### Acceptance Criteria
 
-### 11. Bulk Question Import
+- Universal diagnostic post-merge test passes.
+- OpenAPI describes raw download exceptions.
+- Frontend API client does not need ad-hoc parsing per route.
 
-Status: Fully Complete
-Priority: Phase 3
-Difficulty: Medium
-Source: Product Requirements
-
-Implemented Layers:
-- Frontend: Complete
-- Backend: Complete
-- MongoDB: Complete
-- SQLite: Complete
-- Tests: Complete
-- OpenAPI: Complete
-
-Current Evidence:
-- Route: `POST /api/faqs/import` (supports json, csv, markdown)
-- File verification and loading in `backend/services/importService.js` and `backend/routes/faqRoutes.js`
-- Tests added in `backend/tests/phases_3_and_4.test.js`
-
-Remaining Gaps:
-- None
-
-Last Updated:
-- 2026-06-19
+### Resolution Evidence
+- Nesting the `meta` object inside `backend/utils/apiResponse.js` standardizes all REST success responses.
+- Handled backwards compatibility for the new nested format in the frontend `AuthContext.jsx` and `QuestionDetail.jsx`.
+- Standardized the rate limiters, search, and summary responses to return standard envelopes.
+- Kept download/export route raw response format behavior while documenting it.
+- Confirmed that the diagnostic post-merge tests pass successfully.
 
 ---
 
-### 12. PDF/Word to Automatic Thread Generation
+## Issue 3 — OpenAPI Coverage Drift
 
-Status: Fully Complete
-Priority: Phase 3
-Difficulty: Hard
-Source: Product Requirements
+Status: Stabilization Required
+Priority: Critical
+Area: Documentation / API Contracts
 
-Implemented Layers:
-- Frontend: Complete
-- Backend: Complete
-- MongoDB: Complete
-- SQLite: Complete
-- Tests: Complete
-- OpenAPI: Complete
+### Problem
 
-Current Evidence:
-- Route: `POST /api/faqs/generate-thread`
-- Parsing using `pdf-parse` and fallback candidate Q&A generator in `backend/services/importService.js`
-- Tests added in `backend/tests/phases_3_and_4.test.js`
+`backend/openapi.yaml` includes core and some newer endpoints, but the current route surface is broader than the documented API.
 
-Remaining Gaps:
-- None
+### Required Fix
 
-Last Updated:
-- 2026-06-19
+Expand OpenAPI coverage for implemented endpoints, including:
 
----
+- answer verification
+- revisions and rollback
+- stale/review routes
+- notification preferences
+- moderation queue/action/explanation
+- knowledge gaps
+- duplicate detection
+- chat
+- translations
+- GraphQL
+- bounties
+- contributor leaderboard
+- export/import/thread generation
+- recommendations
+- learning paths
+- journey stats
 
-## Phase 4 — Recommendation and Learning Intelligence
+### Acceptance Criteria
 
-Target: Move from static content organization to personalized discovery.
-
-### 13. Personalized FAQ Recommendations
-
-Status: Fully Complete
-Priority: Phase 4
-Difficulty: Medium
-Source: Product Requirements
-
-Implemented Layers:
-- Frontend: Complete
-- Backend: Complete
-- MongoDB: Complete
-- SQLite: Complete
-- Tests: Complete
-- OpenAPI: Complete
-
-Current Evidence:
-- Route: `GET /api/recommendations/faqs`
-- Integrated scoring ranking model using bookmarks, follows, votes, and categories in `backend/services/recommendationService.js` and `backend/routes/recommendationRoutes.js`
-- Tests added in `backend/tests/phases_3_and_4.test.js` and verified in `backend/tests/universal.postmerge.test.js`
-
-Remaining Gaps:
-- None
-
-Last Updated:
-- 2026-06-19
+- Every public route mounted in `backend/server.js` is listed in OpenAPI or explicitly marked internal.
+- Request/response examples exist for key routes.
+- Download routes document raw response formats.
 
 ---
 
-### 14. Related Learning Paths
+## Issue 4 — Frontend Wiring for Backend-Complete Features
 
-Status: Fully Complete
-Priority: Phase 4
-Difficulty: Medium
-Source: Product Requirements
+Status: Backend Complete / Frontend Pending
+Priority: High
+Area: Frontend
 
-Implemented Layers:
-- Frontend: Complete
-- Backend: Complete
-- MongoDB: Complete (`LearningPath` model)
-- SQLite: Complete (`learning_paths` and `learning_path_items` tables)
-- Tests: Complete
-- OpenAPI: Complete
+### Problem
 
-Current Evidence:
-- Routes: `GET /api/learning-paths`, `POST /api/learning-paths`, `GET /api/learning-paths/:id`
-- Logic in `backend/routes/learningPathRoutes.js`
-- Tests added in `backend/tests/phases_3_and_4.test.js`
+Backend has advanced features that are not fully surfaced in the frontend.
 
-Remaining Gaps:
-- None
+### Required Frontend Work
 
-Last Updated:
-- 2026-06-19
+Add or complete UI/API wiring for:
 
----
+1. Verified answer badges and moderator verification controls.
+2. Real badge/milestone profile rendering.
+3. Contributor leaderboard from `/api/contributors/leaderboard`.
+4. Revision history and rollback panels.
+5. Diff viewer for revisions.
+6. Needs-update admin queue and “Still relevant?” feedback.
+7. Export controls for JSON/CSV/Markdown/PDF.
+8. Import and document-thread generation UI.
+9. Learning paths page and path details.
+10. Recommendation widgets backed by `/api/recommendations/faqs`.
+11. Journey dashboard visualization.
+12. Translation controls on FAQ detail.
+13. Bounty creation/list/award UI.
+14. Notification preferences persistence.
 
-### 15. User Learning Journey Dashboard
+### Acceptance Criteria
 
-Status: Fully Complete
-Priority: Phase 4
-Difficulty: Medium
-Source: Product Requirements
-
-Implemented Layers:
-- Frontend: Complete
-- Backend: Complete
-- MongoDB: Complete
-- SQLite: Complete
-- Tests: Complete
-- OpenAPI: Complete
-
-Current Evidence:
-- Route: `GET /api/stats/journey`
-- View events dispatch on `GET /api/answers/:questionId` route, logging in sqlite events table and mongo Event model
-- Dashboard calculation logic in `backend/routes/statsRoutes.js`
-- Tests added in `backend/tests/phases_3_and_4.test.js`
-
-Remaining Gaps:
-- None
-
-Last Updated:
-- 2026-06-19
+- Backend-complete features are accessible from the UI.
+- Static/mock data is replaced with API data where backend routes exist.
+- Error states and loading states are visible.
+- Feature behavior is covered by frontend tests or integration tests.
 
 ---
 
-## Phase 5 — Moderation and Quality AI
+## Issue 5 — AI Service Runtime Hardening
 
-Target: Add explainable AI-assisted quality controls.
+Status: Stabilization Required
+Priority: High
+Area: AI / Tests / Reliability
 
-### 16. Basic AI Moderation
+### Problem
 
-Status: Fully Complete
-Priority: Phase 5
-Difficulty: Medium
-Source: Product Requirements
+AI-backed services can call Gemini for moderation, translation, duplicate detection, document parsing, summary generation, and chat. Tests must not depend on real Gemini calls. Runtime must degrade gracefully when API keys are missing or invalid.
 
-Implemented Layers:
-- Frontend: Complete (integration ready)
-- Backend: Complete
-- MongoDB: Complete (ModerationRecord model)
-- SQLite: Complete (moderation_records table)
-- Tests: Complete
+### Required Fix
 
-Current Evidence:
-- Created `backend/services/moderationService.js` supporting Gemini checks with local spam filters.
-- Runs content moderation automatically on creation of FAQs, user queries, and answers.
-- Added admin moderation queue route `GET /api/admin/moderation-queue`.
+- Mock `@google/genai` or service modules in tests.
+- Add explicit timeout and fallback behavior for every AI path.
+- Avoid noisy logs in deterministic tests.
+- Store AI provenance, confidence, and fallback indicators.
+- Ensure CRUD flows do not fail solely because AI is unavailable.
 
-Remaining Gaps:
-- None
+### Acceptance Criteria
 
-Last Updated:
-- 2026-06-19
+- Test suite passes without a valid `GEMINI_API_KEY`.
+- Invalid API key does not break content creation.
+- AI fallback behavior is documented.
 
 ---
 
-### 17. NLP Duplicate Detection and Similarity Scoring
+## Issue 6 — SQLite/MongoDB Parity Verification
 
-Status: Fully Complete
-Priority: Phase 5
-Difficulty: Hard
-Source: Product Requirements
+Status: Stabilization Required
+Priority: High
+Area: Database / Sync
 
-Implemented Layers:
-- Frontend: Complete (integration ready)
-- Backend: Complete
-- MongoDB: Complete (DuplicateLink model)
-- SQLite: Complete (duplicate_links table)
-- Tests: Complete
+### Problem
 
-Current Evidence:
-- Added `backend/services/duplicateDetectionService.js` with Jaccard overlap indexing and semantic Gemini checking.
-- Route: `POST /api/duplicates/check`.
+The dual-store architecture is powerful but increases risk of schema and behavior drift.
 
-Remaining Gaps:
-- None
+### Required Fix
 
-Last Updated:
-- 2026-06-19
+Add automated checks for:
 
----
+- MongoDB model fields vs SQLite table columns.
+- Required indexes.
+- Syncable tables/collections.
+- Fallback read/write behavior.
+- Migration idempotency.
+- Unsynced record monitoring.
 
-### 18. Why Flagged? Moderation Explanations
+### Acceptance Criteria
 
-Status: Fully Complete
-Priority: Phase 5
-Difficulty: Medium
-Source: Product Requirements
-
-Implemented Layers:
-- Frontend: Complete (integration ready)
-- Backend: Complete
-- MongoDB: Complete (explainability fields)
-- SQLite: Complete
-- Tests: Complete
-
-Current Evidence:
-- Store explainability fields (Reason, confidence, categories) in moderation records.
-- Route: `GET /api/admin/moderation/:id/explanation` returns confidence and reasons.
-
-Remaining Gaps:
-- None
-
-Last Updated:
-- 2026-06-19
+- A schema parity test exists.
+- Universal post-merge test verifies key fallback paths.
+- Sync service tests cover idempotency and duplicate avoidance.
 
 ---
 
-### 19. Tiered Moderation Review Pipeline
+## Issue 7 — Frontend Test Coverage Gap
 
-Status: Fully Complete
-Priority: Phase 5
-Difficulty: Hard
-Source: Product Requirements
+Status: Stabilization Required
+Priority: Medium
+Area: Frontend / QA
 
-Implemented Layers:
-- Frontend: Complete (integration ready)
-- Backend: Complete
-- MongoDB: Complete
-- SQLite: Complete
-- Tests: Complete
+### Problem
 
-Current Evidence:
-- Route `PATCH /api/admin/moderation/:id/action` permits admins to approve, reject, or escalate flags.
-- Resolving a moderation record propagates status changes to target content.
+Backend tests are strong, but frontend test coverage is limited or absent.
 
-Remaining Gaps:
-- None
+### Required Fix
 
-Last Updated:
-- 2026-06-19
+Add React Testing Library/Vitest or equivalent tests for:
 
----
+- Auth flow
+- Protected routes
+- Ask question modal
+- Question detail answer/vote/bookmark/follow actions
+- Admin moderation/knowledge-gap UI
+- Notification preferences
+- Chat widget
+- Dashboard stats components
+- Error/loading states
 
-## Phase 6 — Advanced AI, Search, and Knowledge Gap Analysis
+### Acceptance Criteria
 
-Target: Build advanced intelligence once the governance foundation is stable.
-
-### 20. Knowledge Gap Analyzer
-
-Status: Fully Complete
-Priority: Phase 6
-Difficulty: Medium
-Source: Product Requirements
-
-Implemented Layers:
-- Frontend: Complete (integration ready)
-- Backend: Complete
-- MongoDB: Complete (SearchAnalytic model integration)
-- SQLite: Complete (search_analytics table)
-- Tests: Complete
-
-Current Evidence:
-- Logs search terms to database on search executions.
-- Route: `GET /api/admin/knowledge-gaps` aggregates failed searches, unanswered queries, and stale FAQs.
-
-Remaining Gaps:
-- None
-
-Last Updated:
-- 2026-06-19
+- Core frontend flows have automated tests.
+- API calls are mocked consistently.
+- Tests run in CI.
 
 ---
 
-### 21. AI Chatbot Assistant / RAG
+## Issue 8 — Markdown / Rich Formatting Sanitization
 
-Status: Fully Complete
-Priority: Phase 6
-Difficulty: Hard
-Source: Product Requirements
+Status: Missing / Deferred
+Priority: Medium
+Area: Security / Content Rendering
 
-Implemented Layers:
-- Frontend: Complete (integration ready)
-- Backend: Complete
-- MongoDB: Complete (ChatLog model)
-- SQLite: Complete (chat_logs table)
-- Tests: Complete
+### Problem
 
-Current Evidence:
-- Route: `POST /api/chat` searches relevant FAQs, calls Gemini, and provides cited answers.
+Text fields exist, but there is no explicit markdown rendering and sanitization policy.
 
-Remaining Gaps:
-- None
+### Required Fix
 
-Last Updated:
-- 2026-06-19
+- Decide whether Markdown is supported.
+- Add server-side validation/sanitization rules.
+- Add frontend safe renderer.
+- Prevent unsafe HTML/script injection.
 
----
+### Acceptance Criteria
 
-### 22. FAQ Search Relevance Tuning
-
-Status: Fully Complete
-Priority: Phase 6
-Difficulty: Hard
-Source: Product Requirements
-
-Implemented Layers:
-- Frontend: Complete (integration ready)
-- Backend: Complete
-- MongoDB: Complete (text score combined sorting)
-- SQLite: Complete (JS-driven scoring algorithm)
-- Tests: Complete
-
-Current Evidence:
-- Dynamic scoring algorithm using search boost, tag overlaps, and recency applied to search paths.
-
-Remaining Gaps:
-- None
-
-Last Updated:
-- 2026-06-19
+- Markdown policy documented.
+- Unsafe content is rejected or sanitized.
+- Rendering is tested.
 
 ---
 
-### 23. Multi-language FAQ and AI Translation
+## Issue 9 — Nested Threaded Answers
 
-Status: Fully Complete
-Priority: Phase 6
-Difficulty: Medium
-Source: Product Requirements
+Status: Missing / Deferred
+Priority: Medium
+Area: Data Model / UI
 
-Implemented Layers:
-- Frontend: Complete (integration ready)
-- Backend: Complete
-- MongoDB: Complete (FAQTranslation model)
-- SQLite: Complete (faq_translations table)
-- Tests: Complete
+### Problem
 
-Current Evidence:
-- Routes: `POST /api/faqs/:id/translations` (translates content via Gemini) and `GET /api/faqs/:id/translations`.
+Answers attach to a FAQ or query, but nested parent-child replies are not supported.
 
-Remaining Gaps:
-- None
+### Required Fix
 
-Last Updated:
-- 2026-06-19
+- Add optional `parentAnswerId` to MongoDB and SQLite.
+- Add retrieval ordering for nested threads.
+- Update answer submission UI.
+- Add tests.
 
----
+### Acceptance Criteria
 
-## Phase 7 — Platform Expansion
-
-### 24. Public GraphQL API
-
-Status: Fully Complete
-Priority: Phase 7
-Difficulty: Hard
-Source: Product Requirements
-
-Implemented Layers:
-- Frontend: Complete (integration ready)
-- Backend: Complete
-- MongoDB: Complete (schema resolvers)
-- SQLite: Complete
-- Tests: Complete
-
-Current Evidence:
-- Route: `POST /api/graphql` executing queries against FAQs, queries, and answers.
-
-Remaining Gaps:
-- None
-
-Last Updated:
-- 2026-06-19
+- Users can reply to an answer.
+- Nested answers render correctly.
+- Deletion/authorization rules apply to nested replies.
 
 ---
 
-### 25. Bounty System
+## Issue 10 — Anonymous Q&A Audit Workflow
 
-Status: Fully Complete
-Priority: Phase 7
-Difficulty: Medium
-Source: Product Requirements
+Status: Missing / Deferred
+Priority: Medium
+Area: Auth / Audit / Safety
 
-Implemented Layers:
-- Frontend: Complete (integration ready)
-- Backend: Complete
-- MongoDB: Complete (Bounty model)
-- SQLite: Complete (bounties table)
-- Tests: Complete
+### Problem
 
-Current Evidence:
-- Routes: `POST /api/bounties` (create), `POST /api/bounties/:id/award` (award reputation), `GET /api/bounties` (list).
+Anonymous fallback exists, but there is no complete audited anonymous-mode workflow.
 
-Remaining Gaps:
-- None
+### Required Fix
 
-Last Updated:
-- 2026-06-19
+- Define anonymous submission policy.
+- Add audit metadata that does not expose identity publicly.
+- Add moderation guardrails.
+- Add admin review visibility.
 
----
+### Acceptance Criteria
 
-### 26. Advanced Notifications
-
-Status: Fully Complete
-Priority: Phase 7
-Difficulty: Medium
-Source: Product Requirements
-
-Implemented Layers:
-- Frontend: Complete (integration ready)
-- Backend: Complete
-- MongoDB: Complete (NotificationPreference model)
-- SQLite: Complete (notification_preferences table)
-- Tests: Complete
-
-Current Evidence:
-- Routes: `GET /api/notifications/preferences` and `PUT /api/notifications/preferences` to customize delivery channels.
-
-Remaining Gaps:
-- None
-
-Last Updated:
-- 2026-06-19
+- Anonymous users can submit only allowed content.
+- Admins have sufficient audit context.
+- Abuse controls are documented.
 
 ---
 
-## Recommended Build Order
+## Issue 11 — Expert/SME Matching Engine
 
-1. Required tags
-2. Verified answers
-3. Badge engine
-4. Leaderboard API
-5. Version history
-6. Diff viewer
-7. Rollback
-8. Needs-update queue
-9. JSON/CSV/Markdown export
-10. Bulk import
-11. Basic moderation
-12. Duplicate detection
-13. Personalized recommendations
-14. Knowledge gap analyzer
-15. RAG chatbot
-16. Multi-language support
-17. PDF/Word thread generation
-18. GraphQL
-19. Bounty system
-20. Advanced notifications
+Status: Missing / Deferred
+Priority: Low
+Area: Recommendations / Notifications
+
+### Problem
+
+Notifications and follows exist, but there is no dedicated expert matching system.
+
+### Required Fix
+
+- Add expert topic profile fields or model.
+- Rank experts by category, tags, verified answers, and reputation.
+- Notify matched experts for unanswered questions.
+- Add throttling and preferences.
+
+### Acceptance Criteria
+
+- Questions can trigger expert recommendations.
+- Notifications respect preferences.
+- Ranking is explainable.
 
 ---
 
-## Definition of Done for Any New Feature
+## Issue 12 — Smart Category Metrics
 
-A feature is not considered complete unless it includes:
+Status: Missing / Deferred
+Priority: Low
+Area: Analytics / Categories
 
-- Frontend UI or API client integration, when user-facing
-- Backend route/service implementation
-- MongoDB model support, when persisted
-- SQLite fallback schema support, when persisted
-- Validation and authorization rules
-- Event/audit tracking, where relevant
-- Tests for success, validation failure, authorization failure, and fallback storage
-- Documentation updates in `architecture.md` and `prompt-template.md`
+### Problem
+
+Categories exist, but smart category cards do not have a dedicated backend metrics service.
+
+### Required Fix
+
+- Aggregate category activity, trending tags, unanswered counts, stale content, and engagement.
+- Add route such as `GET /api/categories/metrics`.
+- Wire frontend category cards to real metrics.
+
+### Acceptance Criteria
+
+- Category cards display backend-derived metrics.
+- Metrics are tested and documented.
+
+---
+
+## Recommended Final Stabilization Order
+
+1. Standardize roadmap filename and documentation references.
+2. Make diagnostic post-merge test green and canonical.
+3. Normalize/define API response contracts.
+4. Expand OpenAPI coverage.
+5. Harden AI mocking/fallback behavior.
+6. Add SQLite/MongoDB parity checks.
+7. Wire frontend to backend-complete features.
+8. Add frontend tests.
+9. Implement markdown sanitization policy.
+10. Decide whether to defer or implement nested answers, anonymous audit workflow, SME matching, and smart category metrics.
+
+---
+
+## Definition of Done
+
+A roadmap item is done only when:
+
+- Code is implemented.
+- MongoDB and SQLite parity exists where applicable.
+- Tests are added or updated.
+- Frontend is wired where user-facing.
+- OpenAPI is updated where public.
+- `architecture.md` is updated.
+- This roadmap is updated.
+- Universal post-merge test passes.

@@ -3,7 +3,7 @@ function success(res, { statusCode = 200, storage, data, meta = {} }) {
     status: "success",
     storage,
     data,
-    ...meta
+    meta
   });
 }
 

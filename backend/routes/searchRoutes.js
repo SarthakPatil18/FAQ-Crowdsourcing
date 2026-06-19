@@ -9,6 +9,7 @@ const FAQ = require("../models/FAQ");
 const UserQuery = require("../models/UserQuery");
 const { trackEvent } = require("../services/eventService");
 
+const { success, fail } = require("../utils/apiResponse");
 const { searchLimiter } = require("../middleware/rateLimits");
 
 const searchSchema = z.object({
@@ -22,6 +23,9 @@ const searchSchema = z.object({
   query: z.object({}).optional()
 });
 
+// @route   POST api/search
+// @desc    Search FAQs and queries
+// @access  Public
 router.post("/", searchLimiter, validate(searchSchema), async (req, res) => {
   try {
     const { keyword, keywords } = req.body;
@@ -39,8 +43,10 @@ router.post("/", searchLimiter, validate(searchSchema), async (req, res) => {
       .filter(Boolean);
 
     if (searchTerms.length === 0) {
-      return res.status(400).json({
-        error: "At least one search keyword is required"
+      return fail(res, {
+        statusCode: 400,
+        code: "VALIDATION_ERROR",
+        message: "At least one search keyword is required"
       });
     }
 
@@ -123,13 +129,13 @@ router.post("/", searchLimiter, validate(searchSchema), async (req, res) => {
         console.error("Failed to save SearchAnalytic to Mongo:", err.message);
       }
 
-      return res.json({
+      return success(res, {
         storage: "mongodb",
-        keyword: searchText,
-        results: {
+        data: {
           faqs: scoredFaqs,
           userQueries: scoredQueries
-        }
+        },
+        meta: { keyword: searchText }
       });
     }
 
@@ -202,17 +208,19 @@ router.post("/", searchLimiter, validate(searchSchema), async (req, res) => {
       console.error("Failed to save search analytic to SQLite:", err.message);
     }
 
-    return res.json({
+    return success(res, {
       storage: "sqlite",
-      keyword: searchText,
-      results: {
+      data: {
         faqs: scoredFaqs,
         userQueries: scoredQueries
-      }
+      },
+      meta: { keyword: searchText }
     });
   } catch (error) {
-    res.status(500).json({
-      error: "Search failed",
+    return fail(res, {
+      statusCode: 500,
+      code: "SEARCH_FAILED",
+      message: "Search failed",
       details: error.message
     });
   }

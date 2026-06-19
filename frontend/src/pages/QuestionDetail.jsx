@@ -269,7 +269,7 @@ function QuestionDetail() {
       }
 
       const data = await response.json();
-      setSummary(data.summary);
+      setSummary(data.data?.summary || data.summary);
     } catch (err) {
       console.error(err);
       setSummaryError(err.message || "Failed to generate summary.");
