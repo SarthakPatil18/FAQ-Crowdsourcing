@@ -61,8 +61,10 @@ export function AuthProvider({ children }) {
         throw new Error(data.message || data.error || "Login failed");
       }
 
-      localStorage.setItem("crowdfaq-token", data.token);
-      setUser(data.user);
+      const token = data.meta?.token || data.token;
+      const user = data.meta?.user || data.user || data.data;
+      localStorage.setItem("crowdfaq-token", token);
+      setUser(user);
       return { success: true };
     } catch (err) {
       setError(err.message);
@@ -91,8 +93,10 @@ export function AuthProvider({ children }) {
         throw new Error(data.message || data.error || "Signup failed");
       }
 
-      localStorage.setItem("crowdfaq-token", data.token);
-      setUser(data.user);
+      const token = data.meta?.token || data.token;
+      const user = data.meta?.user || data.user || data.data;
+      localStorage.setItem("crowdfaq-token", token);
+      setUser(user);
       return { success: true };
     } catch (err) {
       setError(err.message);

@@ -9,6 +9,7 @@ const FAQ = require("../models/FAQ");
 const UserQuery = require("../models/UserQuery");
 const { trackEvent } = require("../services/eventService");
 
+const { success, fail } = require("../utils/apiResponse");
 const { searchLimiter } = require("../middleware/rateLimits");
 
 const searchSchema = z.object({
@@ -22,6 +23,9 @@ const searchSchema = z.object({
   query: z.object({}).optional()
 });
 
+// @route   POST api/search
+// @desc    Search FAQs and queries
+// @access  Public
 router.post("/", searchLimiter, validate(searchSchema), async (req, res) => {
   try {
     const { keyword, keywords } = req.body;
@@ -39,22 +43,28 @@ router.post("/", searchLimiter, validate(searchSchema), async (req, res) => {
       .filter(Boolean);
 
     if (searchTerms.length === 0) {
-      return res.status(400).json({
-        error: "At least one search keyword is required"
+      return fail(res, {
+        statusCode: 400,
+        code: "VALIDATION_ERROR",
+        message: "At least one search keyword is required"
       });
     }
 
     const searchText = searchTerms.join(" ");
+    const userId = req.user ? String(req.user.id || req.user._id) : "anonymous";
 
     await trackEvent({
       type: "search_performed",
-      userId: "anonymous",
+      userId,
       targetType: "search",
       targetId: searchText,
       metadata: {
         terms: searchTerms
       }
     });
+
+    let scoredFaqs = [];
+    let scoredQueries = [];
 
     if (isMongoAvailable()) {
       const faqResults = await FAQ.find(
@@ -68,11 +78,7 @@ router.post("/", searchLimiter, validate(searchSchema), async (req, res) => {
             $meta: "textScore"
           }
         }
-      ).sort({
-        score: {
-          $meta: "textScore"
-        }
-      });
+      );
 
       const queryResults = await UserQuery.find(
         {
@@ -85,24 +91,55 @@ router.post("/", searchLimiter, validate(searchSchema), async (req, res) => {
             $meta: "textScore"
           }
         }
-      ).sort({
-        score: {
-          $meta: "textScore"
-        }
-      });
+      );
 
-      return res.json({
+      // Score tuning for Mongo results
+      scoredFaqs = faqResults.map(faq => {
+        let finalScore = faq.get("score") || 1.0;
+        if (faq.searchBoost) finalScore += faq.searchBoost;
+        const ageInMs = Date.now() - new Date(faq.updatedAt).getTime();
+        const ageInDays = ageInMs / (1000 * 60 * 60 * 24);
+        if (ageInDays < 7) finalScore += 2.0;
+        else if (ageInDays < 30) finalScore += 1.0;
+
+        const tagOverlap = searchTerms.filter(term => faq.tags && faq.tags.includes(term)).length;
+        finalScore += tagOverlap * 1.5;
+
+        return { ...faq.toObject(), score: finalScore };
+      }).sort((a, b) => b.score - a.score);
+
+      scoredQueries = queryResults.map(q => {
+        let finalScore = q.get("score") || 1.0;
+        const ageInMs = Date.now() - new Date(q.updatedAt).getTime();
+        const ageInDays = ageInMs / (1000 * 60 * 60 * 24);
+        if (ageInDays < 7) finalScore += 2.0;
+        else if (ageInDays < 30) finalScore += 1.0;
+
+        const tagOverlap = searchTerms.filter(term => q.tags && q.tags.includes(term)).length;
+        finalScore += tagOverlap * 1.5;
+
+        return { ...q.toObject(), score: finalScore };
+      }).sort((a, b) => b.score - a.score);
+
+      const totalResults = scoredFaqs.length + scoredQueries.length;
+      try {
+        const SearchAnalytic = require("../models/SearchAnalytic");
+        await SearchAnalytic.create({ query: searchText, userId, resultsCount: totalResults });
+      } catch (err) {
+        console.error("Failed to save SearchAnalytic to Mongo:", err.message);
+      }
+
+      return success(res, {
         storage: "mongodb",
-        keyword: searchText,
-        results: {
-          faqs: faqResults,
-          userQueries: queryResults
-        }
+        data: {
+          faqs: scoredFaqs,
+          userQueries: scoredQueries
+        },
+        meta: { keyword: searchText }
       });
     }
 
     const db = getSQLiteDb();
-
     const likePattern = `%${searchText}%`;
 
     const faqResults = await db.all(
@@ -112,7 +149,6 @@ router.post("/", searchLimiter, validate(searchSchema), async (req, res) => {
       WHERE LOWER(question) LIKE LOWER(?)
          OR LOWER(answer) LIKE LOWER(?)
          OR LOWER(keywords) LIKE LOWER(?)
-      ORDER BY updated_at DESC
       `,
       likePattern,
       likePattern,
@@ -125,23 +161,66 @@ router.post("/", searchLimiter, validate(searchSchema), async (req, res) => {
       FROM user_queries
       WHERE LOWER(question) LIKE LOWER(?)
          OR LOWER(answer) LIKE LOWER(?)
-      ORDER BY updated_at DESC
       `,
       likePattern,
       likePattern
     );
 
-    return res.json({
+    // Score tuning for SQLite results
+    scoredFaqs = faqResults.map(faq => {
+      let finalScore = 1.0;
+      if (faq.search_boost) finalScore += faq.search_boost;
+      const ageInMs = Date.now() - new Date(faq.updated_at).getTime();
+      const ageInDays = ageInMs / (1000 * 60 * 60 * 24);
+      if (ageInDays < 7) finalScore += 2.0;
+      else if (ageInDays < 30) finalScore += 1.0;
+
+      const faqTags = faq.tags ? faq.tags.split(",").map(t => t.trim().toLowerCase()) : [];
+      const tagOverlap = searchTerms.filter(term => faqTags.includes(term)).length;
+      finalScore += tagOverlap * 1.5;
+
+      return { ...faq, score: finalScore };
+    }).sort((a, b) => b.score - a.score);
+
+    scoredQueries = queryResults.map(q => {
+      let finalScore = 1.0;
+      const ageInMs = Date.now() - new Date(q.updated_at).getTime();
+      const ageInDays = ageInMs / (1000 * 60 * 60 * 24);
+      if (ageInDays < 7) finalScore += 2.0;
+      else if (ageInDays < 30) finalScore += 1.0;
+
+      const qTags = q.tags ? q.tags.split(",").map(t => t.trim().toLowerCase()) : [];
+      const tagOverlap = searchTerms.filter(term => qTags.includes(term)).length;
+      finalScore += tagOverlap * 1.5;
+
+      return { ...q, score: finalScore };
+    }).sort((a, b) => b.score - a.score);
+
+    const totalResults = scoredFaqs.length + scoredQueries.length;
+    try {
+      await db.run(
+        `INSERT INTO search_analytics (query, user_id, results_count) VALUES (?, ?, ?)`,
+        searchText,
+        userId,
+        totalResults
+      );
+    } catch (err) {
+      console.error("Failed to save search analytic to SQLite:", err.message);
+    }
+
+    return success(res, {
       storage: "sqlite",
-      keyword: searchText,
-      results: {
-        faqs: faqResults,
-        userQueries: queryResults
-      }
+      data: {
+        faqs: scoredFaqs,
+        userQueries: scoredQueries
+      },
+      meta: { keyword: searchText }
     });
   } catch (error) {
-    res.status(500).json({
-      error: "Search failed",
+    return fail(res, {
+      statusCode: 500,
+      code: "SEARCH_FAILED",
+      message: "Search failed",
       details: error.message
     });
   }
