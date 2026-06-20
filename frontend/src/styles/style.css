@@ -4895,3 +4895,25 @@ html:has(.landing-container) {
     max-width: 100%;
   }
 }
+
+/* Custom Content Type and Status Badges */
+.tag.content-type-badge.faq {
+  color: #3b82f6;
+  border-color: rgba(59, 130, 246, 0.3);
+  background: rgba(59, 130, 246, 0.08);
+}
+.tag.content-type-badge.query {
+  color: #8b5cf6;
+  border-color: rgba(139, 92, 246, 0.3);
+  background: rgba(139, 92, 246, 0.08);
+}
+.tag.status-badge.resolved {
+  color: #10b981;
+  border-color: rgba(16, 185, 129, 0.3);
+  background: rgba(16, 185, 129, 0.08);
+}
+.tag.status-badge.pending {
+  color: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.3);
+  background: rgba(245, 158, 11, 0.08);
+}

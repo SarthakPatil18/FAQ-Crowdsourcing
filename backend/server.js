@@ -115,6 +115,52 @@ app.get("/health/queue", (req, res) => {
   });
 });
 
+app.get("/health/persistence", async (req, res) => {
+  if (process.env.NODE_ENV === "production") {
+    return res.status(404).json({
+      status: "error",
+      code: "ROUTE_NOT_FOUND",
+      message: "Route not found"
+    });
+  }
+
+  const result = {
+    status: "ok",
+    mongoAvailable: isMongoAvailable(),
+    mongoDatabaseName: mongoose.connection?.name || null,
+    sqliteAvailable: false,
+    sqlitePath: process.env.SQLITE_PATH || "./faq_fallback.sqlite",
+    counts: {
+      faqs: null,
+      userQueries: null,
+      answers: null
+    }
+  };
+
+  try {
+    const db = getSQLiteDb();
+
+    const faqs = await db.get("SELECT COUNT(*) AS count FROM faqs");
+    const userQueries = await db.get("SELECT COUNT(*) AS count FROM user_queries");
+    const answers = await db.get("SELECT COUNT(*) AS count FROM answers");
+
+    result.sqliteAvailable = true;
+    result.counts.faqs = faqs.count;
+    result.counts.userQueries = userQueries.count;
+    result.counts.answers = answers.count;
+
+    return res.json(result);
+  } catch (error) {
+    return res.status(500).json({
+      ...result,
+      status: "error",
+      code: "PERSISTENCE_HEALTH_FAILED",
+      message: error.message
+    });
+  }
+});
+
+
 app.use("/api/faqs", faqRoutes);
 app.use("/api/queries", queryRoutes);
 app.use("/api/search", searchRoutes);

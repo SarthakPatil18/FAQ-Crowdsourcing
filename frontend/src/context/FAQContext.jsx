@@ -230,40 +230,180 @@ const initialContributors = [
   { rank: 10, name: "Ryan Park", avatar: "R", answers: 78, questions: 8, reputation: 2980, tier: "bronze", medal: "" }
 ];
 
-function mapBackendFaqToQuestion(faq) {
-  const id = faq._id || faq.id || faq.mongo_id;
+const QUESTIONS_CACHE_KEY = "crowdfaq_questions_cache";
+const UNSYNCED_QUESTIONS_KEY = "crowdfaq_unsynced_questions";
 
+function safeArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function readJsonArray(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeJsonArray(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(safeArray(value)));
+  } catch (error) {
+    console.warn(`Failed to persist ${key}:`, error);
+  }
+}
+
+function extractEnvelopeArray(response) {
+  if (Array.isArray(response)) return response;
+  if (Array.isArray(response?.data)) return response.data;
+  if (Array.isArray(response?.data?.items)) return response.data.items;
+  if (Array.isArray(response?.items)) return response.items;
+  return [];
+}
+
+function normalizeTags(value) {
+  if (Array.isArray(value)) return value.filter(Boolean);
+  if (typeof value === "string") {
+    return value
+      .split(",")
+      .map((tag) => tag.trim().replace(/^#/, ""))
+      .filter(Boolean);
+  }
+  return [];
+}
+
+function getExcerpt(description) {
+  if (!description) return "";
+  return description.length > 120
+    ? `${description.substring(0, 120)}...`
+    : description;
+}
+
+function normalizeFaqToQuestion(faq) {
+  const id = String(faq.id || faq._id || faq.mongo_id || "");
+  const desc = faq.description || faq.answer || "";
   return {
+    ...faq,
     id,
-    title: faq.question,
+    sourceType: "faq",
+    title: faq.question || faq.title || "",
+    question: faq.question || faq.title || "",
+    answer: faq.answer || "",
+    description: desc,
+    excerpt: faq.excerpt || getExcerpt(desc),
     category: faq.category || "General",
-    excerpt:
-    faq.description && faq.description.length > 120
-    ? `${faq.description.substring(0, 120)}...`
-    : faq.description || "",
-    
-    description: faq.description || "",
-    
-    hashtags: Array.isArray(faq.keywords)
-      ? faq.keywords
-      : typeof faq.keywords === "string"
-        ? faq.keywords.split(",").filter(Boolean)
-        : [],
+    hashtags: normalizeTags(faq.tags || faq.hashtags || faq.keywords),
+    tags: normalizeTags(faq.tags || faq.hashtags || faq.keywords),
+    status: faq.status || "resolved",
     votes: faq.votes || 0,
-    voted: false,
-    bookmarked: false,
-    author: faq.author || "Community Member",
-    time: faq.createdAt || faq.created_at || "Recently",
+    voted: Boolean(faq.voted),
+    bookmarked: Boolean(faq.bookmarked),
+    author: faq.author || faq.authorName || "Community Member",
+    time: faq.createdAt || faq.created_at || faq.time || "Recently",
     views: faq.views || 0,
-    answers: faq.answers || []
+    answers: faq.answers || [],
+    createdAt: faq.createdAt || faq.created_at || new Date().toISOString(),
+    updatedAt: faq.updatedAt || faq.updated_at || faq.createdAt || faq.created_at,
+    pendingSync: false
   };
+}
+
+function normalizeQueryToQuestion(query) {
+  const id = String(query.id || query._id || query.mongo_id || "");
+  const desc = query.description || query.answer || "";
+  return {
+    ...query,
+    id,
+    sourceType: "query",
+    title: query.question || query.title || "",
+    question: query.question || query.title || "",
+    answer: query.answer || "",
+    description: desc,
+    excerpt: query.excerpt || getExcerpt(desc),
+    category: query.category || "General",
+    hashtags: normalizeTags(query.tags || query.hashtags),
+    tags: normalizeTags(query.tags || query.hashtags),
+    status: query.status || "pending",
+    votes: query.votes || 0,
+    voted: Boolean(query.voted),
+    bookmarked: Boolean(query.bookmarked),
+    author: query.author || query.authorName || "Anonymous",
+    time: query.createdAt || query.created_at || query.time || "Recently",
+    views: query.views || 0,
+    answers: query.answers || [],
+    createdAt: query.createdAt || query.created_at || new Date().toISOString(),
+    updatedAt: query.updatedAt || query.updated_at || query.createdAt || query.created_at,
+    pendingSync: false
+  };
+}
+
+function normalizeLocalQuestion(question) {
+  const id = String(question.id || `local-${crypto.randomUUID()}`);
+  const desc = question.description || question.answer || "";
+  return {
+    ...question,
+    id,
+    sourceType: question.sourceType || "query",
+    title: question.question || question.title || "",
+    question: question.question || question.title || "",
+    description: desc,
+    excerpt: question.excerpt || getExcerpt(desc),
+    category: question.category || "General",
+    hashtags: normalizeTags(question.tags || question.hashtags),
+    tags: normalizeTags(question.tags || question.hashtags),
+    status: question.status || "pending",
+    votes: question.votes || 0,
+    voted: Boolean(question.voted),
+    bookmarked: Boolean(question.bookmarked),
+    author: question.author || question.authorName || "Anonymous",
+    time: question.createdAt || question.created_at || question.time || "Just now",
+    views: question.views || 0,
+    answers: question.answers || [],
+    createdAt: question.createdAt || question.created_at || new Date().toISOString(),
+    pendingSync: Boolean(question.pendingSync)
+  };
+}
+
+function mergeQuestionLists(...lists) {
+  const map = new Map();
+
+  lists.flat().filter(Boolean).forEach((item) => {
+    const normalized = normalizeLocalQuestion(item);
+    const key = normalized.id || `${normalized.sourceType}:${normalized.question}:${normalized.createdAt}`;
+
+    if (!map.has(key)) {
+      map.set(key, normalized);
+      return;
+    }
+
+    const existing = map.get(key);
+    map.set(key, {
+      ...existing,
+      ...normalized,
+      pendingSync: existing.pendingSync && !normalized.pendingSync
+        ? false
+        : normalized.pendingSync || existing.pendingSync
+    });
+  });
+
+  return Array.from(map.values()).sort((a, b) => {
+    return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+  });
 }
 
 export function FAQProvider({ children }) {
   const { user } = useAuth();
   const [questions, setQuestions] = useState(() => {
-    const saved = localStorage.getItem("crowdfaq_questions");
-    return saved ? JSON.parse(saved) : initialQuestions;
+    const saved = localStorage.getItem(QUESTIONS_CACHE_KEY) || localStorage.getItem("crowdfaq_questions");
+    const parsed = saved ? JSON.parse(saved) : initialQuestions;
+    const unsyncedLocal = readJsonArray(UNSYNCED_QUESTIONS_KEY).map(normalizeLocalQuestion);
+    const normalizedParsed = parsed.map(item => {
+      if (item.sourceType === "faq") return normalizeFaqToQuestion(item);
+      return normalizeQueryToQuestion(item);
+    });
+    return mergeQuestionLists(unsyncedLocal, normalizedParsed);
   });
   const [backendOnline, setBackendOnline] = useState(false);
   const [loadingQuestions, setLoadingQuestions] = useState(true);
@@ -277,29 +417,66 @@ export function FAQProvider({ children }) {
   const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
-    if (!backendOnline) {
-      localStorage.setItem("crowdfaq_questions", JSON.stringify(questions));
-    }
-  }, [questions, backendOnline]);
+    writeJsonArray(QUESTIONS_CACHE_KEY, questions);
+  }, [questions]);
 
   useEffect(() => {
     localStorage.setItem("crowdfaq_contributors", JSON.stringify(contributors));
   }, [contributors]);
 
+  async function loadQuestionsFromAllSources(limit = 100, offset = 0) {
+    const unsyncedLocal = readJsonArray(UNSYNCED_QUESTIONS_KEY).map(normalizeLocalQuestion);
+
+    try {
+      setLoadingQuestions(true);
+      const [faqResult, queryResult] = await Promise.allSettled([
+        fetchFaqs(limit, offset),
+        fetchQueries(limit, offset)
+      ]);
+
+      const backendFaqs =
+        faqResult.status === "fulfilled"
+          ? extractEnvelopeArray(faqResult.value).map(normalizeFaqToQuestion)
+          : [];
+
+      const backendQueries =
+        queryResult.status === "fulfilled"
+          ? extractEnvelopeArray(queryResult.value).map(normalizeQueryToQuestion)
+          : [];
+
+      const merged = mergeQuestionLists(unsyncedLocal, backendQueries, backendFaqs);
+
+      setQuestions(merged);
+      writeJsonArray(QUESTIONS_CACHE_KEY, merged);
+      setBackendOnline(true);
+
+      const faqTotal = faqResult.status === "fulfilled" && (faqResult.value.meta?.pagination?.total || faqResult.value?.pagination?.total || 0) || 0;
+      const queryTotal = queryResult.status === "fulfilled" && (queryResult.value.meta?.pagination?.total || queryResult.value?.pagination?.total || 0) || 0;
+      const total = faqTotal + queryTotal;
+
+      setPagination({ limit, offset, total });
+
+      return merged;
+    } catch (error) {
+      console.warn("Backend question load failed. Using local cache:", error);
+
+      const cached = readJsonArray(QUESTIONS_CACHE_KEY).map(normalizeLocalQuestion);
+      const merged = mergeQuestionLists(unsyncedLocal, cached);
+
+      setQuestions(merged);
+      setBackendOnline(false);
+
+      return merged;
+    } finally {
+      setLoadingQuestions(false);
+    }
+  }
+
   const loadPage = async (page) => {
     try {
       setLoadingQuestions(true);
       const newOffset = page * pagination.limit;
-      const response = await fetchQueries(pagination.limit, newOffset);
-      const backendFaqs = response.data || [];
-      if (backendFaqs.length > 0) {
-        setQuestions(backendFaqs.map(mapBackendFaqToQuestion));
-      }
-      if (response.meta?.pagination) {
-        setPagination(response.meta.pagination);
-      } else if (response.pagination) {
-        setPagination(response.pagination);
-      }
+      await loadQuestionsFromAllSources(pagination.limit, newOffset);
     } catch (err) {
       console.error("Failed to load page", err);
     } finally {
@@ -309,38 +486,7 @@ export function FAQProvider({ children }) {
 
   // Sync with Backend database on mount
   useEffect(() => {
-    const loadFromBackend = async () => {
-      try {
-        setLoadingQuestions(true);
-
-        const response = await fetchQueries(pagination.limit, pagination.offset);
-        const backendFaqs = response.data || [];
-
-        if (backendFaqs.length > 0) {
-          setQuestions(backendFaqs.map(mapBackendFaqToQuestion));
-          if (response.meta?.pagination) {
-            setPagination(response.meta.pagination);
-          } else if (response.pagination) {
-            setPagination(response.pagination);
-          }
-        } else {
-          const saved = localStorage.getItem("crowdfaq_questions");
-          setQuestions(saved ? JSON.parse(saved) : initialQuestions);
-        }
-
-        setBackendOnline(true);
-      } catch (err) {
-        console.warn("Backend unavailable. Using localStorage fallback:", err.message);
-
-        const saved = localStorage.getItem("crowdfaq_questions");
-        setQuestions(saved ? JSON.parse(saved) : initialQuestions);
-        setBackendOnline(false);
-      } finally {
-        setLoadingQuestions(false);
-      }
-    };
-
-    loadFromBackend();
+    loadQuestionsFromAllSources();
   }, []);
 
   function requireLoggedInAction(actionName) {
@@ -352,25 +498,56 @@ export function FAQProvider({ children }) {
   const addQuestion = async (title, category, description, hashtagsString) => {
     requireLoggedInAction("ask a question");
 
-    const tags = hashtagsString
-      ? hashtagsString
-          .split(",")
-          .map((t) => t.trim().replace(/^#/, ""))
-          .filter(Boolean)
-      : [];
-
     const authorName = user ? user.name : "Guest";
+
+    const tempQuestion = normalizeLocalQuestion({
+      id: `local-${crypto.randomUUID()}`,
+      sourceType: "query",
+      question: title,
+      title,
+      description,
+      category,
+      tags: hashtagsString,
+      hashtags: hashtagsString,
+      status: "pending",
+      pendingSync: true,
+      author: authorName,
+      authorName: authorName,
+      createdAt: new Date().toISOString()
+    });
+
+    const currentUnsynced = readJsonArray(UNSYNCED_QUESTIONS_KEY).map(normalizeLocalQuestion);
+    const nextUnsynced = mergeQuestionLists([tempQuestion], currentUnsynced);
+
+    writeJsonArray(UNSYNCED_QUESTIONS_KEY, nextUnsynced);
+
+    setQuestions((prev) => {
+      const merged = mergeQuestionLists([tempQuestion], prev);
+      writeJsonArray(QUESTIONS_CACHE_KEY, merged);
+      return merged;
+    });
 
     try {
       const response = await submitQuery({
         question: title,
-        answer: "",
-        category,
         description,
-        hashtags: tags
+        category,
+        tags: normalizeTags(hashtagsString)
       });
 
-      const saved = response.data;
+      const serverQuestion = normalizeQueryToQuestion(response?.data || response);
+
+      const remainingUnsynced = readJsonArray(UNSYNCED_QUESTIONS_KEY)
+        .filter((item) => item.id !== tempQuestion.id);
+
+      writeJsonArray(UNSYNCED_QUESTIONS_KEY, remainingUnsynced);
+
+      setQuestions((prev) => {
+        const withoutTemp = prev.filter((item) => item.id !== tempQuestion.id);
+        const merged = mergeQuestionLists([serverQuestion], withoutTemp);
+        writeJsonArray(QUESTIONS_CACHE_KEY, merged);
+        return merged;
+      });
 
       // Update contributor list with this user's question
       setContributors((prev) => {
@@ -386,51 +563,16 @@ export function FAQProvider({ children }) {
         ].sort((a, b) => b.reputation - a.reputation).map((c, i) => ({ ...c, rank: i + 1 }));
       });
 
-      const newQuestion = {
-        id: saved._id || saved.id,
-        title,
-        category,
-        excerpt:
-          description.length > 120
-            ? `${description.substring(0, 120)}...`
-            : description,
-        description,
-        hashtags: tags,
-        votes: 0,
-        voted: false,
-        bookmarked: false,
-        author: authorName,
-        time: "Just now",
-        views: 0,
-        answers: []
-      };
+      setBackendOnline(true);
 
-      setQuestions((prev) => [newQuestion, ...prev]);
-      return newQuestion;
-    } catch (err) {
-      console.warn("Backend write failed. Saving locally:", err.message);
+      // Important: reload from both /faqs and /queries after server write.
+      await loadQuestionsFromAllSources();
 
-      const newQuestion = {
-        id: crypto.randomUUID(),
-        title,
-        category,
-        excerpt:
-          description.length > 120
-            ? `${description.substring(0, 120)}...`
-            : description,
-        description,
-        hashtags: tags,
-        votes: 0,
-        voted: false,
-        bookmarked: false,
-        author: authorName,
-        time: "Just now",
-        views: 0,
-        answers: []
-      };
-
-      setQuestions((prev) => [newQuestion, ...prev]);
-      return newQuestion;
+      return serverQuestion;
+    } catch (error) {
+      console.warn("Question saved locally as unsynced because backend write failed:", error);
+      setBackendOnline(false);
+      return tempQuestion;
     }
   };
 
@@ -640,10 +782,7 @@ export function FAQProvider({ children }) {
         loadingQuestions,
         pagination,
         loadPage,
-        refreshQuestions: async () => {
-          const response = await fetchFaqs(pagination.limit, pagination.offset);
-          setQuestions((response.data || []).map(mapBackendFaqToQuestion));
-        }
+        refreshQuestions: () => loadQuestionsFromAllSources(pagination.limit, pagination.offset)
       }}
     >
       {children}

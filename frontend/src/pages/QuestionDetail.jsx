@@ -51,7 +51,8 @@ function QuestionDetail() {
   const [error, setError] = useState("");
   const [answers, setAnswers] = useState([]);
 
-  const question = questions.find((q) => String(q.id) === String(id)) || defaultQuestion;
+  const getQuestionId = (item) => String(item.id || item._id || item.mongo_id || "");
+  const question = questions.find((item) => getQuestionId(item) === String(id)) || defaultQuestion;
 
   const [answersPagination, setAnswersPagination] = useState({ limit: 10, offset: 0, total: 0 });
 

@@ -363,6 +363,7 @@ npm test -- universal.postmerge.diagnostic.test.js
 10. Add loading, empty, error, and success states.
 11. Update `missing-features-roadmap.md` after every feature change.
 12. Update `architecture.md` when frontend routes/components or integration state changes.
+13. Ensure frontend query feeds merge both backend FAQs (`/api/faqs`) and queries (`/api/queries`) along with local unsynced questions to support normalized feed rehydration after page reload (preventing pending questions from vanishing).
 
 ---
 

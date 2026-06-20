@@ -948,6 +948,28 @@ Add or track tests for:
 
 ---
 
+## Persistence/Rehydration Fix — Questions Disappearing After Reload
+
+Status: Complete
+Scope: Frontend persistence/reload fix
+Files Changed:
+- `frontend/src/context/FAQContext.jsx`
+- `frontend/src/pages/Questions.jsx`
+- `frontend/src/pages/QuestionDetail.jsx`
+- `frontend/public/widget.js`
+- `backend/server.js`
+
+Implementation Evidence:
+- Frontend now fetches both `/api/faqs` and `/api/queries`.
+- Frontend merges backend data with local unsynced questions.
+- New questions submitted as queries remain visible after reload.
+- SQLite fallback direct test confirms records persist in `user_queries`.
+
+Remaining Gaps:
+- Add automated frontend tests for offline/unsynced question rehydration.
+
+---
+
 ## Recommended Execution Order
 
 The LLM must not start automatically. The user must select the exact item.

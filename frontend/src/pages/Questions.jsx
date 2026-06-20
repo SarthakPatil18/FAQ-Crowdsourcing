@@ -38,12 +38,8 @@ function Questions() {
   } else if (activeFilter === "Most Voted") {
     filtered = filtered.sort((a, b) => b.votes - a.votes);
   } else if (activeFilter === "Newest") {
-    // Newest first by sorting on ID (timestamp) or index
     filtered = filtered.sort((a, b) => {
-      // Handle non-numeric IDs gracefully
-      const aVal = typeof a.id === "number" ? a.id : 0;
-      const bVal = typeof b.id === "number" ? b.id : 0;
-      return bVal - aVal;
+      return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
     });
   }
 
@@ -125,6 +121,12 @@ function Questions() {
                       <div className="q-tags">
                         {q.answers && q.answers.length > 0 && <span className="tag answered">✓ Answered</span>}
                         <span className="tag category">{q.category}</span>
+                        <span className={`tag content-type-badge ${q.sourceType || "query"}`}>
+                          {q.sourceType === "faq" ? "FAQ" : "Question"}
+                        </span>
+                        <span className={`tag status-badge ${q.status || "pending"}`}>
+                          {q.status === "resolved" ? "Resolved" : "Open"}
+                        </span>
                       </div>
 
                       <h3 className="q-title q-title-blue">

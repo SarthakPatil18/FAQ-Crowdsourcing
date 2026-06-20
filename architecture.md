@@ -178,6 +178,15 @@ If `frontend-sample.txt` is unavailable, frontend implementation should pause un
 - `frontend/src/context/ThemeContext.jsx`
   - Handles frontend theme state.
 
+### 4.3 Frontend Question Feed Normalization
+
+The frontend Questions experience renders a normalized union of:
+- backend FAQs from `/api/faqs`,
+- backend user queries from `/api/queries`,
+- local unsynced questions from `crowdfaq_unsynced_questions`.
+
+This prevents submitted questions from disappearing after reload when the backend stores open questions in `user_queries` but resolved knowledge entries in `faqs`.
+
 ### 4.2 Frontend Pages
 
 - `Admin.jsx`
