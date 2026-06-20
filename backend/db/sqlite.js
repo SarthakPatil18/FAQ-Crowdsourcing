@@ -317,8 +317,92 @@ async function connectSQLite() {
 
   await runMigrations(sqliteDb);
 
+  // Check and seed mock events if events table is empty or partially seeded
+  try {
+    const countObj = await sqliteDb.get("SELECT COUNT(*) as count FROM events");
+    if (countObj && countObj.count < 1271) {
+      if (countObj.count > 0) {
+        console.log("Interrupted seeding detected. Resetting and seeding fresh mock events...");
+        await sqliteDb.run("DELETE FROM events");
+      }
+      await seedMockEvents(sqliteDb);
+    }
+  } catch (seedErr) {
+    console.error("Failed to seed mock events:", seedErr.message);
+  }
+
   console.log("SQLite fallback ready");
 }
+
+async function seedMockEvents(db) {
+  console.log("Seeding mock events for SQLite...");
+  const dayMs = 24 * 60 * 60 * 1000;
+  const now = Date.now();
+
+  const pattern = [
+    { questions: 12, answers: 32, votes: 95 },  // 6 days ago
+    { questions: 15, answers: 45, votes: 120 }, // 5 days ago
+    { questions: 8,  answers: 28, votes: 85 },  // 4 days ago
+    { questions: 22, answers: 58, votes: 160 }, // 3 days ago
+    { questions: 31, answers: 79, votes: 210 }, // 2 days ago
+    { questions: 19, answers: 42, votes: 130 }, // 1 day ago
+    { questions: 7,  answers: 18, votes: 55 }    // today
+  ];
+
+  await db.run("BEGIN TRANSACTION");
+  try {
+    for (let i = 0; i < 7; i++) {
+      const daysAgo = 6 - i;
+      const date = new Date(now - daysAgo * dayMs);
+      const { questions, answers, votes } = pattern[i];
+
+      // Seed questions
+      for (let q = 0; q < questions; q++) {
+        const eventDate = new Date(date);
+        eventDate.setHours(Math.floor(Math.random() * 24), Math.floor(Math.random() * 60));
+        await db.run(
+          `INSERT INTO events (type, user_id, target_type, created_at) VALUES (?, ?, ?, ?)`,
+          "question_created",
+          "anonymous",
+          "query",
+          eventDate.toISOString()
+        );
+      }
+
+      // Seed answers
+      for (let a = 0; a < answers; a++) {
+        const eventDate = new Date(date);
+        eventDate.setHours(Math.floor(Math.random() * 24), Math.floor(Math.random() * 60));
+        await db.run(
+          `INSERT INTO events (type, user_id, target_type, created_at) VALUES (?, ?, ?, ?)`,
+          "answer_created",
+          "anonymous",
+          "answer",
+          eventDate.toISOString()
+        );
+      }
+
+      // Seed votes
+      for (let v = 0; v < votes; v++) {
+        const eventDate = new Date(date);
+        eventDate.setHours(Math.floor(Math.random() * 24), Math.floor(Math.random() * 60));
+        await db.run(
+          `INSERT INTO events (type, user_id, target_type, created_at) VALUES (?, ?, ?, ?)`,
+          "vote_created",
+          "anonymous",
+          "answer",
+          eventDate.toISOString()
+        );
+      }
+    }
+    await db.run("COMMIT");
+    console.log("Mock events seeding completed successfully.");
+  } catch (err) {
+    await db.run("ROLLBACK");
+    throw err;
+  }
+}
+
 
 function getSQLiteDb() {
   if (!sqliteDb) {

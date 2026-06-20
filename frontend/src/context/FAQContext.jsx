@@ -264,14 +264,27 @@ function extractEnvelopeArray(response) {
 }
 
 function normalizeTags(value) {
-  if (Array.isArray(value)) return value.filter(Boolean);
-  if (typeof value === "string") {
-    return value
+  let tags = [];
+  if (Array.isArray(value)) {
+    tags = value.filter(Boolean);
+  } else if (typeof value === "string") {
+    tags = value
       .split(",")
       .map((tag) => tag.trim().replace(/^#/, ""))
       .filter(Boolean);
   }
-  return [];
+
+  const uniqueTags = [];
+  const seen = new Set();
+  for (const tag of tags) {
+    const cleanTag = tag.trim();
+    const lower = cleanTag.toLowerCase();
+    if (cleanTag && !seen.has(lower)) {
+      seen.add(lower);
+      uniqueTags.push(cleanTag);
+    }
+  }
+  return uniqueTags;
 }
 
 function getExcerpt(description) {
@@ -649,10 +662,8 @@ export function FAQProvider({ children }) {
       throw err;
     }
   };
-
   const addAnswer = async (questionId, content) => {
     requireLoggedInAction("submit an answer");
-
     const cleanContent = content.trim();
     if (!cleanContent) return null;
 
