@@ -24,7 +24,7 @@ const defaultQuestion = {
 };
 
 function QuestionDetail() {
-  const { questions, editQuestion, upvoteQuestion, bookmarkQuestion, addAnswer, upvoteAnswer } = useFAQ();
+  const { questions, editQuestion, deleteQuestion, upvoteQuestion, bookmarkQuestion, addAnswer, upvoteAnswer } = useFAQ();
   const { id } = useParams();
   const [showModal, setShowModal] = useState(false);
   const [replyText, setReplyText] = useState("");
@@ -734,8 +734,13 @@ function QuestionDetail() {
                         <button
                           className="bookmark-btn danger-button"
                           onClick={async () => {
+                            const confirmed = window.confirm(
+                              "Are you sure you want to delete this question?"
+                            );
+                            if (!confirmed) return;
                             try {
                               await deleteQuery(question.id);
+                              deleteQuestion(question.id);
                               window.history.back();
                             } catch (err) {
                               setError(err.message || "Failed to delete question.");
@@ -746,7 +751,7 @@ function QuestionDetail() {
                         </button>
                   )}
 
-                  {canDelete(answer) && (
+                  {/*{canDelete(answer) && (
                     <button
                       className="bookmark-btn"
                       onClick={() => {
@@ -757,7 +762,7 @@ function QuestionDetail() {
                     >
                       Edit
                     </button>
-                      )}
+                      )}*/}
 
                       <div style={{ position: "relative" }} ref={followMenuRef}>
                         <button

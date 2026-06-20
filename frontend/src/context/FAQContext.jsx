@@ -603,6 +603,13 @@ export function FAQProvider({ children }) {
     )
   );
   }; 
+  const deleteQuestion = (questionId) => {
+    setQuestions((prev) =>
+      prev.filter(
+        (q) => String(q.id || q._id) !== String(questionId)
+      )
+    );
+  };
   const upvoteQuestion = async (id) => {
     requireLoggedInAction("upvote");
 
@@ -802,6 +809,7 @@ export function FAQProvider({ children }) {
         upvoteQuestion,
         bookmarkQuestion,
         editQuestion,
+        deleteQuestion,
         addAnswer,
         upvoteAnswer,
         backendOnline,
