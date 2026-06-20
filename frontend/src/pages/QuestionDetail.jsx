@@ -24,7 +24,7 @@ const defaultQuestion = {
 };
 
 function QuestionDetail() {
-  const { questions, editQuestion, deleteQuestion, upvoteQuestion, bookmarkQuestion, addAnswer, upvoteAnswer } = useFAQ();
+  const { questions, upvoteQuestion, bookmarkQuestion, addAnswer, upvoteAnswer, setQuestionAnswers, loadingQuestions } = useFAQ();
   const { id } = useParams();
   const [showModal, setShowModal] = useState(false);
   const [replyText, setReplyText] = useState("");
@@ -82,6 +82,12 @@ function QuestionDetail() {
           isBest: Boolean(ans.isBest || ans.is_best)
         }));
         setAnswers(mapped);
+        // Persist fetched answers into FAQContext so they survive reloads
+        try {
+          if (setQuestionAnswers) setQuestionAnswers(id, mapped);
+        } catch (err) {
+          console.error("Failed to persist answers to context:", err);
+        }
         if (res.meta?.pagination) {
           setAnswersPagination(res.meta.pagination);
         } else if (res.pagination) {
@@ -166,17 +172,13 @@ function QuestionDetail() {
     }
   };
 
-  useEffect(() => {
-    if (id && id !== "test-id" && id !== "undefined") {
-      loadAnswers(0);
-      loadTranslations();
-      loadBounties();
-    } else {
-      if (question && question.answers) {
-        setAnswers(question.answers);
-      }
-    }
-  }, [id, question.answers]);
+useEffect(() => {
+  if (id && id !== "test-id" && id !== "undefined" && !loadingQuestions) {
+    loadAnswers(0);
+    loadTranslations();
+    loadBounties();
+  }
+}, [id, loadingQuestions]);
 
   // Scroll to top on navigation to different question
   useEffect(() => {
@@ -303,17 +305,19 @@ function QuestionDetail() {
     if (question.id) upvoteQuestion(question.id);
   };
 
+  const questionIdValue = getQuestionId(question);
+
   const toggleBookmark = () => {
-    if (question.id) bookmarkQuestion(question.id);
+    if (questionIdValue) bookmarkQuestion(questionIdValue);
   };
 
   const toggleAnswerVote = (answerId) => {
-    if (question.id) upvoteAnswer(question.id, answerId);
+    if (questionIdValue) upvoteAnswer(questionIdValue, answerId);
   };
 
   const handleSubmitReply = () => {
-    if (replyText.trim() && question.id) {
-      addAnswer(question.id, replyText);
+    if (replyText.trim() && questionIdValue) {
+      addAnswer(questionIdValue, replyText, question.sourceType || "faq");
       setReplyText("");
     }
   };
@@ -831,7 +835,7 @@ function QuestionDetail() {
                   {question.answers ? question.answers.length : 0} {question.answers && question.answers.length === 1 ? "Answer" : "Answers"}
                 </h2>
 
-                {answers && answers.map((answer) => (
+                {question.answers && question.answers.map((answer) => (
                   <div key={answer.id} className={`answer-card ${answer.isBest ? "best-answer" : ""}`}>
                     <div className="vote-col">
                       <button
