@@ -3,12 +3,13 @@ import { Link } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
 import AskQuestionModal from "../components/AskQuestionModal";
+import Hashtag from "../components/Hashtag";
 import { useFAQ } from "../context/FAQContext";
 
 const filters = ["All", "Unanswered", "Most Voted", "Newest"];
 
 function Questions() {
-  const { questions, upvoteQuestion, searchQuery, setSearchQuery } = useFAQ();
+  const { questions, upvoteQuestion, searchQuery, setSearchQuery, pagination, loadPage, backendOnline } = useFAQ();
   const [showModal, setShowModal] = useState(false);
   const [activeFilter, setActiveFilter] = useState("All");
   const [selectedCategory, setSelectedCategory] = useState("All Categories");
@@ -37,12 +38,8 @@ function Questions() {
   } else if (activeFilter === "Most Voted") {
     filtered = filtered.sort((a, b) => b.votes - a.votes);
   } else if (activeFilter === "Newest") {
-    // Newest first by sorting on ID (timestamp) or index
     filtered = filtered.sort((a, b) => {
-      // Handle non-numeric IDs gracefully
-      const aVal = typeof a.id === "number" ? a.id : 0;
-      const bVal = typeof b.id === "number" ? b.id : 0;
-      return bVal - aVal;
+      return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
     });
   }
 
@@ -124,6 +121,12 @@ function Questions() {
                       <div className="q-tags">
                         {q.answers && q.answers.length > 0 && <span className="tag answered">✓ Answered</span>}
                         <span className="tag category">{q.category}</span>
+                        <span className={`tag content-type-badge ${q.sourceType || "query"}`}>
+                          {q.sourceType === "faq" ? "FAQ" : "Question"}
+                        </span>
+                        <span className={`tag status-badge ${q.status || "pending"}`}>
+                          {q.status === "resolved" ? "Resolved" : "Open"}
+                        </span>
                       </div>
 
                       <h3 className="q-title q-title-blue">
@@ -135,7 +138,7 @@ function Questions() {
                       <div className="q-footer">
                         <div className="q-hashtags">
                           {q.hashtags.map((tag) => (
-                            <span key={tag} className="hashtag">#{tag}</span>
+                            <Hashtag key={tag} tag={tag} />
                           ))}
                         </div>
                         <div className="q-meta">
@@ -149,6 +152,31 @@ function Questions() {
               ))
             )}
           </div>
+
+          {/* Pagination Controls */}
+          {backendOnline && pagination && pagination.total > pagination.limit && (
+            <div className="pagination-controls" style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "15px", marginTop: "20px", marginBottom: "20px" }}>
+              <button
+                disabled={pagination.offset === 0}
+                onClick={() => loadPage(Math.floor(pagination.offset / pagination.limit) - 1)}
+                className="pagination-btn btn-secondary"
+                style={{ padding: "8px 16px", cursor: pagination.offset === 0 ? "not-allowed" : "pointer" }}
+              >
+                Previous
+              </button>
+              <span className="pagination-info" style={{ color: "#eee" }}>
+                Page {Math.floor(pagination.offset / pagination.limit) + 1} of {Math.ceil(pagination.total / pagination.limit)}
+              </span>
+              <button
+                disabled={pagination.offset + pagination.limit >= pagination.total}
+                onClick={() => loadPage(Math.floor(pagination.offset / pagination.limit) + 1)}
+                className="pagination-btn btn-secondary"
+                style={{ padding: "8px 16px", cursor: (pagination.offset + pagination.limit >= pagination.total) ? "not-allowed" : "pointer" }}
+              >
+                Next
+              </button>
+            </div>
+          )}
         </main>
       </div>
       <AskQuestionModal open={showModal} onClose={() => setShowModal(false)} />

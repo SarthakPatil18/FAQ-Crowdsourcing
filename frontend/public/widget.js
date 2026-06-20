@@ -7,6 +7,64 @@
   const API_BASE = 'http://localhost:5000';
   const siteId = document.currentScript ? document.currentScript.getAttribute('data-site-id') : 'default';
 
+  const WIDGET_UNSYNCED_KEY = "crowdfaq_widget_unsynced_questions";
+
+  function widgetReadUnsynced() {
+    try {
+      return JSON.parse(localStorage.getItem(WIDGET_UNSYNCED_KEY) || "[]");
+    } catch {
+      return [];
+    }
+  }
+
+  function widgetWriteUnsynced(items) {
+    localStorage.setItem(WIDGET_UNSYNCED_KEY, JSON.stringify(Array.isArray(items) ? items : []));
+  }
+
+  function widgetExtractArray(payload) {
+    if (Array.isArray(payload)) return payload;
+    if (Array.isArray(payload?.data)) return payload.data;
+    if (Array.isArray(payload?.data?.items)) return payload.data.items;
+    return [];
+  }
+
+  function widgetNormalizeFaq(item) {
+    return {
+      ...item,
+      id: String(item.id || item._id || item.mongo_id || ""),
+      sourceType: "faq",
+      question: item.question || item.title || "",
+      answer: item.answer || "",
+      status: item.status || "resolved",
+      createdAt: item.createdAt || item.created_at || new Date().toISOString()
+    };
+  }
+
+  function widgetNormalizeQuery(item) {
+    return {
+      ...item,
+      id: String(item.id || item._id || item.mongo_id || ""),
+      sourceType: "query",
+      question: item.question || item.title || "",
+      answer: item.answer || "",
+      status: item.status || "pending",
+      createdAt: item.createdAt || item.created_at || new Date().toISOString()
+    };
+  }
+
+  function widgetMergeItems(...lists) {
+    const map = new Map();
+
+    lists.flat().filter(Boolean).forEach((item) => {
+      const id = String(item.id || item._id || item.mongo_id || item.question);
+      if (!map.has(id)) map.set(id, item);
+    });
+
+    return Array.from(map.values()).sort(
+      (a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
+    );
+  }
+
   // Inject Google Fonts
   const fontLink = document.createElement('link');
   fontLink.rel = 'stylesheet';
@@ -487,30 +545,34 @@
   fabBtn.addEventListener('click', togglePanel);
   closeBtn.addEventListener('click', togglePanel);
 
-  // Fetch FAQs from API
-  async function fetchFaqs() {
+  // Fetch FAQs and Queries from API
+  async function fetchFaqsAndQueries() {
+    const unsynced = widgetReadUnsynced();
+
     try {
-      const response = await fetch(`${API_BASE}/api/faqs`);
-      if (!response.ok) throw new Error('API server returned error status');
-      const json = await response.json();
-      
-      // Handle the custom MERN architecture return format: { storage: "mongodb", data: [...] }
-      if (json.data && Array.isArray(json.data)) {
-        activeFaqs = json.data;
-      } else if (Array.isArray(json)) {
-        activeFaqs = json;
-      } else {
-        throw new Error('Invalid format returned');
-      }
+      const [faqResponse, queryResponse] = await Promise.all([
+        fetch(`${API_BASE}/api/faqs`),
+        fetch(`${API_BASE}/api/queries`)
+      ]);
+
+      const faqPayload = await faqResponse.json();
+      const queryPayload = await queryResponse.json();
+
+      const faqs = widgetExtractArray(faqPayload).map(widgetNormalizeFaq);
+      const queries = widgetExtractArray(queryPayload).map(widgetNormalizeQuery);
+
+      activeFaqs = widgetMergeItems(unsynced, queries, faqs);
 
       if (activeFaqs.length === 0) {
-        activeFaqs = fallbackFaqs; // Fallback to mocks if DB is empty
+        activeFaqs = fallbackFaqs;
       }
-    } catch (err) {
-      console.warn('CrowdFAQ Backend offline, loading offline fallback mocks. Detail:', err.message);
-      activeFaqs = fallbackFaqs;
+
+      renderFaqs(activeFaqs);
+    } catch (error) {
+      console.warn("Widget API failed, using unsynced/fallback data:", error);
+      activeFaqs = widgetMergeItems(unsynced, fallbackFaqs);
+      renderFaqs(activeFaqs);
     }
-    renderFaqs(activeFaqs);
   }
 
   // Render FAQ List
@@ -590,6 +652,18 @@
     const questionText = askInput.value.trim();
     if (!questionText) return;
 
+    const tempQuestion = {
+      id: `local-${Date.now()}`,
+      sourceType: "query",
+      question: questionText,
+      status: "pending",
+      pendingSync: true,
+      createdAt: new Date().toISOString()
+    };
+
+    const currentUnsynced = widgetReadUnsynced();
+    widgetWriteUnsynced(widgetMergeItems([tempQuestion], currentUnsynced));
+
     try {
       const response = await fetch(`${API_BASE}/api/queries`, {
         method: 'POST',
@@ -599,19 +673,17 @@
 
       if (!response.ok) throw new Error('API server rejected request');
       
+      const remainingUnsynced = widgetReadUnsynced().filter((item) => item.id !== tempQuestion.id);
+      widgetWriteUnsynced(remainingUnsynced);
+
       showToast('Question submitted successfully!', 'success');
       askInput.value = '';
+      await fetchFaqsAndQueries();
     } catch (err) {
       console.error('Failed to submit question to backend:', err);
-      // Simulate submission in fallback offline mode
       showToast('Offline Mode: Question saved locally!', 'success');
       
-      // Dynamically add a temporary query to list for immediate feedback
-      activeFaqs.unshift({
-        id: 'temp-' + Date.now(),
-        question: questionText,
-        answer: 'Offline Mode: This question is queued. It will sync and be answered by AI when connection recovers.'
-      });
+      activeFaqs = widgetMergeItems([tempQuestion], activeFaqs);
       renderFaqs(activeFaqs);
       askInput.value = '';
     }
@@ -643,5 +715,5 @@
   }
 
   // Bootstrap fetching
-  fetchFaqs();
+  fetchFaqsAndQueries();
 })();
