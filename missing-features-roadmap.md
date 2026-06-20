@@ -708,7 +708,7 @@ Improve search controls with filters and sorting.
 
 ## 14. Related Questions Sidebar
 
-Status: Frontend-Only Prototype Pending
+Status: Frontend-Only Prototype Complete
 Scope: Frontend-only
 Priority: Medium-High
 
@@ -727,6 +727,18 @@ Show related questions beside question detail.
 
 - Sidebar appears on question detail.
 - Related items are computed client-side or mocked.
+
+### Implementation Evidence
+
+- Built a custom `.detail-grid` layout wrapping the page in a split view: `.detail-main` (the core FAQ/Question details, answers, reply) and `.detail-sidebar` (containing the Related Questions widget).
+- Implemented an intelligent client-side sorting and scoring algorithm in `QuestionDetail.jsx` matching category similarity (weight: 5), overlapping tags (weight: 3), and title keywords (weight: 2) dynamically using data already in `FAQContext`.
+- Formatted items according to the design guidelines from `frontend-sample.txt` (category pills, title routing, votes and answers count), including a fallback empty state when no related items match.
+- Appended styling variables and classes under `Related Questions Sidebar Styling` in `frontend/src/styles/style.css`.
+- Synchronized detail page re-scroll top behavior via `useEffect` tracking `id`.
+
+### Remaining Gaps
+
+- Integration tests.
 
 ---
 
