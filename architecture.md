@@ -85,6 +85,8 @@ The frontend includes:
 - API abstraction in `frontend/src/api/faqApi.js`
 - Local/fallback state handling for some flows
 - Responsive styling, dark/light theme support, dashboard/admin layouts, and polished landing/widget UI
+- Advanced Search UI filter panel prototype (category, tag, sort, and status filtering client-side)
+- Related Questions sidebar prototype (category, tags, and title keyword similarity scoring)
 
 Several newer backend-complete features still need final frontend wiring or replacement of static/mock UI data.
 
@@ -113,8 +115,8 @@ These features must remain UI-only unless backend/database work is explicitly ap
 
 1. Edit UI for FAQ, Query, and Answers
 2. Whole moderation dashboard and controls prototype
-3. Advanced search UI: category filters, tag filters, sort by newest, sort by votes
-4. Related questions sidebar
+3. Advanced search UI: category filters, tag filters, sort by newest, sort by votes [PROTOTYPE COMPLETE]
+4. Related questions sidebar [PROTOTYPE COMPLETE]
 5. Separate FAQ vs Questions section
 6. Badges/milestone progress bar or meter based on reputation increments
 7. Notifications UI improvement
