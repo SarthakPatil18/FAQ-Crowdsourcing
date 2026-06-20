@@ -6,7 +6,7 @@ import AskQuestionModal from "../components/AskQuestionModal";
 import Hashtag from "../components/Hashtag";
 import { useFAQ } from "../context/FAQContext";
 import { useAuth } from "../context/AuthContext";
-import { deleteFaq, deleteQuery, deleteAnswer, followResource, unfollowResource, muteFollow, fetchAnswers, fetchFaqTranslations, createFaqTranslation, createBounty, awardBounty, fetchBounties } from "../api/faqApi";
+import { deleteFaq, deleteQuery, deleteAnswer, updateQuery, followResource, unfollowResource, muteFollow, fetchAnswers, fetchFaqTranslations, createFaqTranslation, createBounty, awardBounty, fetchBounties } from "../api/faqApi";
 import ErrorToast from "../components/ErrorToast";
 
 const defaultQuestion = {
@@ -24,7 +24,7 @@ const defaultQuestion = {
 };
 
 function QuestionDetail() {
-  const { questions, upvoteQuestion, bookmarkQuestion, addAnswer, upvoteAnswer } = useFAQ();
+  const { questions, editQuestion, upvoteQuestion, bookmarkQuestion, addAnswer, upvoteAnswer } = useFAQ();
   const { id } = useParams();
   const [showModal, setShowModal] = useState(false);
   const [replyText, setReplyText] = useState("");
@@ -50,6 +50,17 @@ function QuestionDetail() {
   const { user } = useAuth();
   const [error, setError] = useState("");
   const [answers, setAnswers] = useState([]);
+
+  const [isEditingQuestion, setIsEditingQuestion] = useState(false);
+  const [editQuestionData, setEditQuestionData] = useState({
+  title: "",
+  description: "",
+  category: "",
+  hashtags: []
+});
+
+  const [editingAnswerId, setEditingAnswerId] = useState(null);
+  const [editAnswerContent, setEditAnswerContent] = useState("");
 
   const getQuestionId = (item) => String(item.id || item._id || item.mongo_id || "");
   const question = questions.find((item) => getQuestionId(item) === String(id)) || defaultQuestion;
@@ -175,6 +186,15 @@ function QuestionDetail() {
       String(resource.userId || resource.user_id) === String(user.id)
     );
   }
+
+  function canEdit(resource) {
+  if (!user || !resource) return false;
+
+  return (
+    user.role === "admin" ||
+    String(resource.userId || resource.user_id) === String(user.id)
+  );
+}
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -429,13 +449,75 @@ function QuestionDetail() {
                       )}
                     </div>
                   )
-                )}
+                )}                
 
-                <h1 className="detail-title">
-                  {selectedLanguage !== "original" && translations.find(t => t.language.toLowerCase() === selectedLanguage.toLowerCase())
-                    ? translations.find(t => t.language.toLowerCase() === selectedLanguage.toLowerCase()).question
-                    : question.title}
-                </h1>
+                {isEditingQuestion ? (
+                  <>
+                    <input
+                      type="text"
+                      value={editQuestionData.title}
+                      onChange={(e) =>
+                        setEditQuestionData({
+                         ...editQuestionData,
+                         title: e.target.value
+                        })
+                      }
+                      className="detail-title-input"
+                      style={{
+                        width: "100%",
+                        fontSize: "2rem",
+                        fontWeight: "700",
+                        padding: "10px",
+                        marginBottom: "12px"
+                      }}
+                    />
+                    <div style={{ display: "flex", gap: "10px", marginBottom: "12px" }}>
+                      <button
+                        className="bookmark-btn"
+                        onClick={async () => {
+                          try {
+                            await updateQuery(question.id, {
+                              question: editQuestionData.title,
+                              description: editQuestionData.description,
+                              category: editQuestionData.category,
+                              tags: editQuestionData.hashtags
+                            });
+                            editQuestion(question.id, editQuestionData);
+                            setIsEditingQuestion(false);
+                          } catch (err) {
+                            console.error(err);
+                            alert("Failed to update question");
+                          }
+                        }}
+                      >
+                      Save
+                      </button>
+
+                      <button
+                        className="bookmark-btn"
+                        onClick={() => {
+                          setIsEditingQuestion(false);
+                        }}
+                      >
+                      Cancel
+                      </button>
+                    </div>
+                  </>
+                  ) : (
+                    <h1 className="detail-title">
+                      {selectedLanguage !== "original" &&
+                      translations.find(
+                        (t) =>
+                          t.language.toLowerCase() === selectedLanguage.toLowerCase()
+                      )
+                        ? translations.find(
+                          (t) =>
+                            t.language.toLowerCase() === selectedLanguage.toLowerCase()
+                        ).question
+                        : question.title}
+                    </h1>
+                  )}
+
                 <button
                   onClick={generateSummary}
                   style={{
@@ -487,7 +569,76 @@ function QuestionDetail() {
                     </p>
                   </div>
                 ) : (
-                  <p className="detail-description">{question.description}</p>
+                  isEditingQuestion ? (
+                    <>
+                    <select
+                    value={editQuestionData.category}
+                    onChange={(e) =>
+                      setEditQuestionData({
+                        ...editQuestionData,
+                        category: e.target.value
+                      })
+                    }
+                    style={{
+                      width: "100%",
+                      padding: "12px",
+                      marginTop: "12px",
+                      marginBottom: "12px",
+                      borderRadius: "8px"
+                      }}
+                      >
+                      <option value="">Select a category</option>
+                      <option>Programming</option>
+                      <option>Artificial Intelligence</option>
+                      <option>Career</option>
+                      <option>Research</option>
+                      <option>Scholarships</option>
+                      <option>Mathematics</option>
+                      </select>
+
+                      <input
+                         type="text"
+                         value={editQuestionData.hashtags.join(", ")}
+                         onChange={(e) =>
+                           setEditQuestionData({
+                             ...editQuestionData,
+                             hashtags: e.target.value
+                               .split(",")
+                               .map(tag => tag.trim())
+                               .filter(tag => tag)
+                           })
+                         }
+                         placeholder="e.g. AI, machine-learning, python"
+                         style={{
+                           width: "100%",
+                           padding: "12px",
+                           marginTop: "12px",
+                           marginBottom: "12px",
+                           borderRadius: "8px"
+                         }}
+                       />
+
+                    <textarea
+                     value={editQuestionData.description}
+                     onChange={(e) =>
+                       setEditQuestionData({
+                         ...editQuestionData,
+                         description: e.target.value
+                      })
+                     }
+                    rows={4}
+                    style={{
+                      width: "100%",
+                      padding: "12px",
+                      marginTop: "12px",
+                      marginBottom: "12px",
+                      borderRadius: "8px"
+                     }}
+                  />
+                  </>
+                  ) : (
+                    <p className="detail-description">{question.description}</p>
+                  )
                 )}
 
                 <div className="detail-hashtags">
@@ -507,19 +658,50 @@ function QuestionDetail() {
                     {question.bookmarked ? "★ Bookmarked" : "☆ Bookmark"}
                   </button>
 
+                  {canEdit(question) && (
+                    <button
+                      className="bookmark-btn edit-button"
+                      onClick={()=> {
+                        setEditQuestionData({
+                          title: question.title || "",
+                          description: question.description || "",
+                          category: question.category || "",
+                          hashtags: question.hashtags || []
+                      });
+
+                      setIsEditingQuestion(true);
+                    }}
+                      >
+                     ✎ Edit
+                    </button>
+                  )}
+
                   {canDelete(question) && (
                     <button
-                      className="danger-button"
+                      className="bookmark-btn danger-button"
                       onClick={async () => {
                         try {
-                          await deleteFaq(question.id);
+                          await deleteQuery(question.id);
                           window.history.back();
                         } catch (err) {
                           setError(err.message || "Failed to delete question.");
                         }
                       }}
                     >
-                      Delete
+                     🗑 Delete
+                    </button>
+                  )}
+
+                  {canDelete(answer) && (
+                    <button
+                      className="bookmark-btn"
+                      onClick={() => {
+                        setEditingAnswerId(answer.id);
+                        setEditAnswerContent(answer.content);
+                      }}
+                      style={{ marginLeft: "10px" }}
+                    >
+                      Edit
                     </button>
                   )}
 
@@ -606,7 +788,20 @@ function QuestionDetail() {
                   {answer.isBest && (
                     <span className="best-badge">✓ Best Answer</span>
                   )}
-                  <p className="answer-text">{answer.content}</p>
+                  {editingAnswerId === answer.id ? (
+                    <textarea
+                      value={editAnswerContent}
+                      onChange={(e) => setEditAnswerContent(e.target.value)}
+                      rows={4}
+                      style={{
+                        width: "100%",
+                        padding: "10px",
+                        borderRadius: "8px"
+                      }}
+                    />
+                  ) : (
+                    <p className="answer-text">{answer.content}</p>
+                  )}
                   <div className="answer-meta">
                     <div className="answer-author">
                       <div className="avatar small">{answer.avatar}</div>
