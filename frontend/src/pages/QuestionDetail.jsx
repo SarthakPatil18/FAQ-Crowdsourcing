@@ -6,7 +6,7 @@ import AskQuestionModal from "../components/AskQuestionModal";
 import Hashtag from "../components/Hashtag";
 import { useFAQ } from "../context/FAQContext";
 import { useAuth } from "../context/AuthContext";
-import { deleteFaq, deleteQuery, deleteAnswer, followResource, unfollowResource, muteFollow, fetchAnswers, fetchFaqTranslations, createFaqTranslation, createBounty, awardBounty, fetchBounties } from "../api/faqApi";
+import { deleteFaq, deleteQuery, deleteAnswer, updateQuery, followResource, unfollowResource, muteFollow, fetchAnswers, fetchFaqTranslations, createFaqTranslation, createBounty, awardBounty, fetchBounties } from "../api/faqApi";
 import ErrorToast from "../components/ErrorToast";
 
 const defaultQuestion = {
@@ -50,6 +50,17 @@ function QuestionDetail() {
   const { user } = useAuth();
   const [error, setError] = useState("");
   const [answers, setAnswers] = useState([]);
+
+  const [isEditingQuestion, setIsEditingQuestion] = useState(false);
+  const [editQuestionData, setEditQuestionData] = useState({
+  title: "",
+  description: "",
+  category: "",
+  hashtags: []
+});
+
+  const [editingAnswerId, setEditingAnswerId] = useState(null);
+  const [editAnswerContent, setEditAnswerContent] = useState("");
 
   const getQuestionId = (item) => String(item.id || item._id || item.mongo_id || "");
   const question = questions.find((item) => getQuestionId(item) === String(id)) || defaultQuestion;
@@ -229,6 +240,15 @@ useEffect(() => {
       String(resource.userId || resource.user_id) === String(user.id)
     );
   }
+
+  function canEdit(resource) {
+  if (!user || !resource) return false;
+
+  return (
+    user.role === "admin" ||
+    String(resource.userId || resource.user_id) === String(user.id)
+  );
+}
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -487,43 +507,107 @@ useEffect(() => {
                           )}
                         </div>
                       )
-                    )}
+                    )}                
 
+                {isEditingQuestion ? (
+                  <>
+                    <input
+                      type="text"
+                      value={editQuestionData.title}
+                      onChange={(e) =>
+                        setEditQuestionData({
+                         ...editQuestionData,
+                         title: e.target.value
+                        })
+                      }
+                      className="detail-title-input"
+                      style={{
+                        width: "100%",
+                        fontSize: "2rem",
+                        fontWeight: "700",
+                        padding: "10px",
+                        marginBottom: "12px"
+                      }}
+                    />
+                    <div style={{ display: "flex", gap: "10px", marginBottom: "12px" }}>
+                      <button
+                        className="bookmark-btn"
+                        onClick={async () => {
+                          try {
+                            await updateQuery(question.id, {
+                              question: editQuestionData.title,
+                              description: editQuestionData.description,
+                              category: editQuestionData.category,
+                              tags: editQuestionData.hashtags
+                            });
+                            editQuestion(question.id, editQuestionData);
+                            setIsEditingQuestion(false);
+                          } catch (err) {
+                            console.error(err);
+                            alert("Failed to update question");
+                          }
+                        }}
+                      >
+                      Save
+                      </button>
+
+                      <button
+                        className="bookmark-btn"
+                        onClick={() => {
+                          setIsEditingQuestion(false);
+                        }}
+                      >
+                      Cancel
+                      </button>
+                    </div>
+                  </>
+                  ) : (
                     <h1 className="detail-title">
-                      {selectedLanguage !== "original" && translations.find(t => t.language.toLowerCase() === selectedLanguage.toLowerCase())
-                        ? translations.find(t => t.language.toLowerCase() === selectedLanguage.toLowerCase()).question
+                      {selectedLanguage !== "original" &&
+                      translations.find(
+                        (t) =>
+                          t.language.toLowerCase() === selectedLanguage.toLowerCase()
+                      )
+                        ? translations.find(
+                          (t) =>
+                            t.language.toLowerCase() === selectedLanguage.toLowerCase()
+                        ).question
                         : question.title}
                     </h1>
-                    <button
-                      onClick={generateSummary}
-                      style={{
-                        marginTop: "12px",
-                        marginBottom: "12px",
-                        padding: "8px 14px",
-                        cursor: "pointer"
-                      }}
-                    >
-                      ✨ Generate TL;DR
-                    </button>
+                  )}
+
+                <button
+                  onClick={generateSummary}
+                  style={{
+                    marginTop: "12px",
+                    marginBottom: "12px",
+                    padding: "8px 14px",
+                    cursor: "pointer"
+                  }}
+                >
+                  ✨ Generate TL;DR
+                </button>
 
                     {summaryLoading && <p style={{ color: "#aaa", marginBottom: "12px" }}>Generating summary...</p>}
                     {summaryError && <p role="alert" style={{ color: "#f87171", marginBottom: "12px" }}>{summaryError}</p>}
 
-                    {summary && (
-                      <div
-                        style={{
-                          marginBottom: "16px",
-                          padding: "12px",
-                          border: "1px solid #444",
-                          borderRadius: "8px",
-                          background: "#1e1e1e",
-                          color: "#eee"
-                        }}
-                      >
-                        <strong>AI Summary</strong>
-                        <p style={{ marginTop: "6px", fontSize: "14px", lineHeight: "1.5" }}>{summary}</p>
-                      </div>
-                    )}
+                {summary && (
+                  <div
+                    style={{
+                      marginBottom: "16px",
+                      padding: "12px",
+                      border: "1px solid #444",
+                      borderRadius: "8px",
+                      background: "#1e1e1e",
+                      color: "#eee"
+                    }}
+                  >
+                    <strong>AI Summary</strong>
+                    <p style={{ marginTop: "6px", fontSize: "14px", lineHeight: "1.5" }}>{summary}</p>
+                  </div>
+                )}
+
+
 
                     {selectedLanguage !== "original" && translations.find(t => t.language.toLowerCase() === selectedLanguage.toLowerCase()) ? (
                       <div style={{
@@ -543,8 +627,77 @@ useEffect(() => {
                         </p>
                       </div>
                     ) : (
-                      <p className="detail-description">{question.description}</p>
-                    )}
+                  isEditingQuestion ? (
+                    <>
+                    <select
+                    value={editQuestionData.category}
+                    onChange={(e) =>
+                      setEditQuestionData({
+                        ...editQuestionData,
+                        category: e.target.value
+                      })
+                    }
+                    style={{
+                      width: "100%",
+                      padding: "12px",
+                      marginTop: "12px",
+                      marginBottom: "12px",
+                      borderRadius: "8px"
+                      }}
+                      >
+                      <option value="">Select a category</option>
+                      <option>Programming</option>
+                      <option>Artificial Intelligence</option>
+                      <option>Career</option>
+                      <option>Research</option>
+                      <option>Scholarships</option>
+                      <option>Mathematics</option>
+                      </select>
+
+                      <input
+                         type="text"
+                         value={editQuestionData.hashtags.join(", ")}
+                         onChange={(e) =>
+                           setEditQuestionData({
+                             ...editQuestionData,
+                             hashtags: e.target.value
+                               .split(",")
+                               .map(tag => tag.trim())
+                               .filter(tag => tag)
+                           })
+                         }
+                         placeholder="e.g. AI, machine-learning, python"
+                         style={{
+                           width: "100%",
+                           padding: "12px",
+                           marginTop: "12px",
+                           marginBottom: "12px",
+                           borderRadius: "8px"
+                         }}
+                       />
+
+                    <textarea
+                     value={editQuestionData.description}
+                     onChange={(e) =>
+                       setEditQuestionData({
+                         ...editQuestionData,
+                         description: e.target.value
+                      })
+                     }
+                    rows={4}
+                    style={{
+                      width: "100%",
+                      padding: "12px",
+                      marginTop: "12px",
+                      marginBottom: "12px",
+                      borderRadius: "8px"
+                     }}
+                  />
+                  </>
+                  ) : (
+                        <p className="detail-description">{question.description}</p>
+                      )
+                )}
 
                     <div className="detail-hashtags">
                       {question.hashtags.map((tag) => (
@@ -563,21 +716,57 @@ useEffect(() => {
                         {question.bookmarked ? "★ Bookmarked" : "☆ Bookmark"}
                       </button>
 
+                  {canEdit(question) && (
+                    <button
+                      className="bookmark-btn edit-button"
+                      onClick={()=> {
+                        setEditQuestionData({
+                          title: question.title || "",
+                          description: question.description || "",
+                          category: question.category || "",
+                          hashtags: question.hashtags || []
+                      });
+
+                      setIsEditingQuestion(true);
+                    }}
+                      >
+                     ✎ Edit
+                    </button>
+                  )}
+
                       {canDelete(question) && (
                         <button
-                          className="danger-button"
+                          className="bookmark-btn danger-button"
                           onClick={async () => {
+                            const confirmed = window.confirm(
+                              "Are you sure you want to delete this question?"
+                            );
+                            if (!confirmed) return;
                             try {
-                              await deleteFaq(question.id);
+                              await deleteQuery(question.id);
+                              deleteQuestion(question.id);
                               window.history.back();
                             } catch (err) {
                               setError(err.message || "Failed to delete question.");
                             }
                           }}
                         >
-                          Delete
+                         🗑 Delete
                         </button>
-                      )}
+                  )}
+
+                  {/*{canDelete(answer) && (
+                    <button
+                      className="bookmark-btn"
+                      onClick={() => {
+                        setEditingAnswerId(answer.id);
+                        setEditAnswerContent(answer.content);
+                      }}
+                      style={{ marginLeft: "10px" }}
+                    >
+                      Edit
+                    </button>
+                      )}*/}
 
                       <div style={{ position: "relative" }} ref={followMenuRef}>
                         <button
@@ -658,81 +847,95 @@ useEffect(() => {
                       <span className="vote-count">{answer.votes}</span>
                     </div>
 
-                    <div className="answer-body">
-                      {answer.isBest && (
-                        <span className="best-badge">✓ Best Answer</span>
-                      )}
-                      <p className="answer-text">{answer.content}</p>
-                      <div className="answer-meta">
-                        <div className="answer-author">
-                          <div className="avatar small">{answer.avatar}</div>
-                          <strong>{answer.author}</strong>
-                        </div>
-                        <span className="answer-time">{answer.time}</span>
-                        {canDelete(answer) && (
-                          <button
-                            className="danger-button"
-                            onClick={async () => {
-                              try {
-                                await deleteAnswer(answer.id);
-                                // Reload answers after deletion to sync with backend
-                                await loadAnswers(0);
-                              } catch (err) {
-                                setError(err.message || "Failed to delete answer.");
-                              }
-                            }}
-                            style={{ marginLeft: "auto" }}
-                          >
-                            Delete
-                          </button>
-                        )}
-                        {activeBounty && (String(activeBounty.createdBy) === String(user?.id) || user?.role === "admin") && (
-                          <button
-                            onClick={() => handleAwardBounty(answer.id)}
-                            className="bounty-award-btn"
-                            style={{
-                              marginLeft: canDelete(answer) ? "10px" : "auto",
-                              padding: "6px 12px",
-                              borderRadius: "6px",
-                              backgroundColor: "#f59e0b",
-                              color: "#fff",
-                              border: "none",
-                              cursor: "pointer",
-                              fontWeight: "bold",
-                              fontSize: "12px"
-                            }}
-                          >
-                            🏆 Award Bounty ({activeBounty.amount} pts)
-                          </button>
-                        )}
-                      </div>
+                <div className="answer-body">
+                  {answer.isBest && (
+                    <span className="best-badge">✓ Best Answer</span>
+                  )}
+                  {editingAnswerId === answer.id ? (
+                    <textarea
+                      value={editAnswerContent}
+                      onChange={(e) => setEditAnswerContent(e.target.value)}
+                      rows={4}
+                      style={{
+                        width: "100%",
+                        padding: "10px",
+                        borderRadius: "8px"
+                      }}
+                    />
+                  ) : (
+                    <p className="answer-text">{answer.content}</p>
+                  )}
+                  <div className="answer-meta">
+                    <div className="answer-author">
+                      <div className="avatar small">{answer.avatar}</div>
+                      <strong>{answer.author}</strong>
                     </div>
+                    <span className="answer-time">{answer.time}</span>
+                    {canDelete(answer) && (
+                      <button
+                        className="danger-button"
+                        onClick={async () => {
+                          try {
+                            await deleteAnswer(answer.id);
+                            setAnswers((prev) =>
+                              prev.filter((item) => String(item.id) !== String(answer.id))
+                            );
+                          } catch (err) {
+                            setError(err.message || "Failed to delete answer.");
+                          }
+                        }}
+                        style={{ marginLeft: "auto" }}
+                      >
+                        Delete
+                      </button>
+                    )}
+                    {activeBounty && (String(activeBounty.createdBy) === String(user?.id) || user?.role === "admin") && (
+                      <button
+                        onClick={() => handleAwardBounty(answer.id)}
+                        className="bounty-award-btn"
+                        style={{
+                          marginLeft: canDelete(answer) ? "10px" : "auto",
+                          padding: "6px 12px",
+                          borderRadius: "6px",
+                          backgroundColor: "#f59e0b",
+                          color: "#fff",
+                          border: "none",
+                          cursor: "pointer",
+                          fontWeight: "bold",
+                          fontSize: "12px"
+                        }}
+                      >
+                        🏆 Award Bounty ({activeBounty.amount} pts)
+                      </button>
+                    )}
                   </div>
-                ))}
-                {answersPagination.total > answersPagination.limit && (
-                  <div className="pagination-controls" style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "10px", marginTop: "15px", marginBottom: "15px" }}>
-                    <button
-                      disabled={answersPagination.offset === 0}
-                      onClick={() => loadAnswers(Math.floor(answersPagination.offset / answersPagination.limit) - 1)}
-                      className="pagination-btn btn-secondary"
-                      style={{ padding: "6px 12px", cursor: answersPagination.offset === 0 ? "not-allowed" : "pointer" }}
-                    >
-                      Previous
-                    </button>
-                    <span className="pagination-info" style={{ color: "#eee" }}>
-                      Page {Math.floor(answersPagination.offset / answersPagination.limit) + 1} of {Math.ceil(answersPagination.total / answersPagination.limit)}
-                    </span>
-                    <button
-                      disabled={answersPagination.offset + answersPagination.limit >= answersPagination.total}
-                      onClick={() => loadAnswers(Math.floor(answersPagination.offset / answersPagination.limit) + 1)}
-                      className="pagination-btn btn-secondary"
-                      style={{ padding: "6px 12px", cursor: (answersPagination.offset + answersPagination.limit >= answersPagination.total) ? "not-allowed" : "pointer" }}
-                    >
-                      Next
-                    </button>
-                  </div>
-                )}
-              </section>
+                </div>
+              </div>
+            ))}
+            {answersPagination.total > answersPagination.limit && (
+              <div className="pagination-controls" style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "10px", marginTop: "15px", marginBottom: "15px" }}>
+                <button
+                  disabled={answersPagination.offset === 0}
+                  onClick={() => loadAnswers(Math.floor(answersPagination.offset / answersPagination.limit) - 1)}
+                  className="pagination-btn btn-secondary"
+                  style={{ padding: "6px 12px", cursor: answersPagination.offset === 0 ? "not-allowed" : "pointer" }}
+                >
+                  Previous
+                </button>
+                <span className="pagination-info" style={{ color: "#eee" }}>
+                  Page {Math.floor(answersPagination.offset / answersPagination.limit) + 1} of {Math.ceil(answersPagination.total / answersPagination.limit)}
+                </span>
+                <button
+                  disabled={answersPagination.offset + answersPagination.limit >= answersPagination.total}
+                  onClick={() => loadAnswers(Math.floor(answersPagination.offset / answersPagination.limit) + 1)}
+                  className="pagination-btn btn-secondary"
+                  style={{ padding: "6px 12px", cursor: (answersPagination.offset + answersPagination.limit >= answersPagination.total) ? "not-allowed" : "pointer" }}
+                >
+                  Next
+                </button>
+              </div>
+            )}
+          </section>
 
               <section className="reply-section">
                 <h2 className="answers-heading">Your Answer</h2>

@@ -603,7 +603,28 @@ export function FAQProvider({ children }) {
       return tempQuestion;
     }
   };
-
+  const editQuestion = (questionId, updatedData) => {
+  setQuestions((prev) =>
+    prev.map((q) =>
+      String(q.id || q._id) === String(questionId)
+        ? {
+            ...q,
+            title: updatedData.title,
+            description: updatedData.description,
+            category: updatedData.category,
+            hashtags: updatedData.hashtags
+          }
+        : q
+    )
+  );
+  }; 
+  const deleteQuestion = (questionId) => {
+    setQuestions((prev) =>
+      prev.filter(
+        (q) => String(q.id || q._id) !== String(questionId)
+      )
+    );
+  };
   const upvoteQuestion = async (id) => {
     requireLoggedInAction("upvote");
 
@@ -809,6 +830,8 @@ export function FAQProvider({ children }) {
         addQuestion,
         upvoteQuestion,
         bookmarkQuestion,
+        editQuestion,
+        deleteQuestion,
         addAnswer,
         setQuestionAnswers,
         upvoteAnswer,
