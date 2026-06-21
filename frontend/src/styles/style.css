@@ -210,6 +210,8 @@ body {
   color: var(--text-primary);
   display: flex;
   min-height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 #root {
@@ -4112,8 +4114,8 @@ input, select, textarea {
 }
 
 .auth-submit-btn {
-  background: var(--bg-cta);
-  color: var(--text-white);
+  background: var(--accent-blue);
+  color: #ffffff;
   border: none;
   padding: 14px;
   border-radius: var(--radius-md);
@@ -4436,6 +4438,34 @@ input, select, textarea {
   min-height: 100vh;
   position: relative;
   overflow-x: hidden;
+}
+
+/* Custom scrollbar for landing page */
+.landing-container::-webkit-scrollbar {
+  width: 8px;
+}
+.landing-container::-webkit-scrollbar-track {
+  background: var(--bg-page);
+}
+.landing-container::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+.landing-container::-webkit-scrollbar-thumb:hover {
+  background: var(--text-light);
+}
+html::-webkit-scrollbar {
+  width: 8px;
+}
+html::-webkit-scrollbar-track {
+  background: var(--bg-page);
+}
+html::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+html::-webkit-scrollbar-thumb:hover {
+  background: var(--text-light);
 }
 
 /* Navbar */
@@ -5407,6 +5437,47 @@ input, select, textarea {
 [data-theme="dark"] .landing-navbar {
   background: rgba(24, 24, 27, 0.7) !important;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+}
+
+[data-theme="dark"] .landing-container .landing-stats-strip {
+  background: #1a1a2e !important;
+  border-top-color: #2a2d3e !important;
+  border-bottom-color: #2a2d3e !important;
+}
+
+[data-theme="dark"] .landing-container .landing-stats-item:not(:last-child)::after {
+  background: #2a2d3e !important;
+}
+
+[data-theme="dark"] .landing-container .landing-feature-card {
+  background: rgba(36, 36, 36, 0.6) !important;
+  border-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+[data-theme="dark"] .landing-container .landing-feature-card:hover {
+  background: rgba(36, 36, 36, 0.9) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+[data-theme="dark"] .landing-extension-banner {
+  background: #1a1a2e !important;
+}
+
+[data-theme="dark"] .landing-container .btn-primary {
+  background: #ffffff !important;
+  color: #111111 !important;
+}
+[data-theme="dark"] .landing-container .btn-primary:hover {
+  box-shadow: 0 8px 20px rgba(255, 255, 255, 0.15) !important;
+}
+
+[data-theme="dark"] .landing-container .btn-secondary {
+  border-color: #ffffff !important;
+  color: #ffffff !important;
+}
+
+[data-theme="dark"] .landing-container .btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
 }
 
 /* Hero Badge */
