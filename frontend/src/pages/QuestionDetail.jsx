@@ -6,7 +6,7 @@ import AskQuestionModal from "../components/AskQuestionModal";
 import Hashtag from "../components/Hashtag";
 import { useFAQ } from "../context/FAQContext";
 import { useAuth } from "../context/AuthContext";
-import { deleteFaq, deleteQuery, deleteAnswer, updateQuery, followResource, unfollowResource, muteFollow, fetchAnswers, fetchFaqTranslations, createFaqTranslation, createBounty, awardBounty, fetchBounties } from "../api/faqApi";
+import { deleteFaq, deleteQuery, updateAnswer, deleteAnswer, updateQuery, followResource, unfollowResource, muteFollow, fetchAnswers, fetchFaqTranslations, createFaqTranslation, createBounty, awardBounty, fetchBounties } from "../api/faqApi";
 import ErrorToast from "../components/ErrorToast";
 
 const defaultQuestion = {
@@ -74,9 +74,13 @@ function QuestionDetail() {
       if (res.data) {
         const mapped = res.data.map((ans) => ({
           id: ans._id || ans.id,
+          userId: ans.userId || ans.user_id,
+
           author: ans.author || ans.authorName || "Community Member",
           avatar: (ans.author || "C")[0].toUpperCase(),
           content: ans.content,
+          createdAt: ans.createdAt,
+          updatedAt: ans.updatedAt,
           votes: ans.votes || 0,
           time: ans.createdAt || ans.created_at || "Recently",
           isBest: Boolean(ans.isBest || ans.is_best)
@@ -713,6 +717,19 @@ const handleSubmitReply = async () => {
 
                     <div className="detail-meta">
                       <span>Asked by <strong>{question.author}</strong></span>
+                      {question.updatedAt &&
+                        question.createdAt &&
+                        question.updatedAt !== question.createdAt && (
+                          <span
+                            style={{
+                              fontSize: "12px",
+                              color: "#888",
+                              fontStyle: "italic"
+                          }}
+                      >
+                          Edited
+                        </span>
+                      )}
                       <span>{question.time}</span>
                       <span>👁 {question.views} views</span>
                       <button
@@ -760,19 +777,6 @@ const handleSubmitReply = async () => {
                          🗑 Delete
                         </button>
                   )}
-
-                  {/*{canDelete(answer) && (
-                    <button
-                      className="bookmark-btn"
-                      onClick={() => {
-                        setEditingAnswerId(answer.id);
-                        setEditAnswerContent(answer.content);
-                      }}
-                      style={{ marginLeft: "10px" }}
-                    >
-                      Edit
-                    </button>
-                      )}*/}
 
                       <div style={{ position: "relative" }} ref={followMenuRef}>
                         <button
@@ -858,6 +862,7 @@ const handleSubmitReply = async () => {
                     <span className="best-badge">✓ Best Answer</span>
                   )}
                   {editingAnswerId === answer.id ? (
+                    <>
                     <textarea
                       value={editAnswerContent}
                       onChange={(e) => setEditAnswerContent(e.target.value)}
@@ -868,20 +873,109 @@ const handleSubmitReply = async () => {
                         borderRadius: "8px"
                       }}
                     />
-                  ) : (
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: "10px",
+                        marginTop: "10px"
+                      }}
+                    >
+                      <button
+                        className="bookmark-btn"
+                        onClick={async () => {
+                          if (!editAnswerContent.trim()) {
+                            setError("Answer cannot be empty.");
+                            return;
+                          }
+                          try {
+                            await updateAnswer(answer.id, {
+                            content: editAnswerContent
+                          });
+                          setAnswers((prev) =>
+                            prev.map((a) =>
+                              String(a.id) === String(answer.id)
+                                ? { ...a, content: editAnswerContent, updatedAt: new Date().toISOString() }
+                                : a
+                             )
+                            );
+                            setEditingAnswerId(null);
+                          } catch (err) {
+                            setError(err.message || "Failed to update answer.");
+                          }
+                        }}
+                      >
+                        Save
+                      </button>
+
+                      <button
+                        className="bookmark-btn"
+                        onClick={() => {
+                          setEditingAnswerId(null);
+                          setEditAnswerContent("");
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </>
+                 ) : (
                     <p className="answer-text">{answer.content}</p>
                   )}
                   <div className="answer-meta">
                     <div className="answer-author">
                       <div className="avatar small">{answer.avatar}</div>
                       <strong>{answer.author}</strong>
-                    </div>
-                    <span className="answer-time">{answer.time}</span>
+                    </div> 
+                    <div
+                        style={{
+                          marginLeft: "auto",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "12px"
+                        }}
+                      >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px"
+                        }}
+                      >
+                        {answer.updatedAt &&
+                        answer.createdAt &&
+                        answer.updatedAt !== answer.createdAt && (
+                          <span
+                            style={{
+                              fontSize: "12px",
+                              color: "#888",
+                             fontStyle: "italic"
+                        }}
+                      >
+                        Edited
+                      </span>
+                      )}
+                         <span className="answer-time">{answer.time}</span>
+                      </div>
+                      {canEdit(answer) && (
+                        <button
+                          className="bookmark-btn"
+                          onClick={() => {
+                            setEditingAnswerId(answer.id);
+                            setEditAnswerContent(answer.content);
+                          }}
+                      >
+                        ✎ Edit
+                      </button>
+                    )}
                     {canDelete(answer) && (
                       <button
-                        className="danger-button"
+                        className="bookmark-btn danger-button"
                         onClick={async () => {
                           try {
+                            const confirmed = window.confirm(
+                              "Are you sure you want to delete this answer?"
+                            );
+                            if (!confirmed) return;
                             await deleteAnswer(answer.id);
                             setAnswers((prev) =>
                               prev.filter((item) => String(item.id) !== String(answer.id))
@@ -890,11 +984,11 @@ const handleSubmitReply = async () => {
                             setError(err.message || "Failed to delete answer.");
                           }
                         }}
-                        style={{ marginLeft: "auto" }}
                       >
-                        Delete
+                        🗑 Delete
                       </button>
                     )}
+                    </div>
                     {activeBounty && (String(activeBounty.createdBy) === String(user?.id) || user?.role === "admin") && (
                       <button
                         onClick={() => handleAwardBounty(answer.id)}
