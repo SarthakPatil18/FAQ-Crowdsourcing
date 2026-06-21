@@ -312,5 +312,3 @@ export async function queryGraphQL(query, variables = {}) {
     body: JSON.stringify({ query, variables })
   });
 }
-
-
