@@ -894,7 +894,7 @@ const handleSubmitReply = async () => {
                           setAnswers((prev) =>
                             prev.map((a) =>
                               String(a.id) === String(answer.id)
-                                ? { ...a, content: editAnswerContent }
+                                ? { ...a, content: editAnswerContent, updatedAt: new Date().toISOString() }
                                 : a
                              )
                             );
