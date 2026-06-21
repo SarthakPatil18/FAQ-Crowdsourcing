@@ -24,7 +24,7 @@ const defaultQuestion = {
 };
 
 function QuestionDetail() {
-  const { questions, upvoteQuestion, bookmarkQuestion, addAnswer, upvoteAnswer, setQuestionAnswers, loadingQuestions, refreshQuestions } = useFAQ();
+  const { questions, upvoteQuestion, bookmarkQuestion, addAnswer, upvoteAnswer, loadingQuestions, refreshQuestions, deleteQuestion, restoreQuestion } = useFAQ();
   const { id } = useParams();
   const [showModal, setShowModal] = useState(false);
   const [replyText, setReplyText] = useState("");
@@ -38,6 +38,8 @@ function QuestionDetail() {
   const [bountyAmount, setBountyAmount] = useState(50);
   const [showBountyForm, setShowBountyForm] = useState(false);
   const [bountyLoading, setBountyLoading] = useState(false);
+  const [pendingQuestionDelete, setPendingQuestionDelete] = useState(null);
+  const [hasGoneBack, setHasGoneBack] = useState(false);
 
   const [followData, setFollowData] = useState({
     isFollowing: false,
@@ -364,6 +366,63 @@ const handleSubmitReply = async () => {
       setSummaryLoading(false);
     }
   };
+
+  if (pendingQuestionDelete) {
+  return (
+    <>
+      <Sidebar />
+      <div className="main-wrapper">
+        <Topbar openModal={() => setShowModal(true)} />
+
+        <main className="content">
+          <div
+            style={{
+              padding: "40px",
+              textAlign: "center"
+            }}
+          >
+            <h2>Question deleted</h2>
+
+            <p>
+              This question will be permanently deleted in{" "}
+              {pendingQuestionDelete.countdown} seconds.
+            </p>
+
+            <div
+              style={{
+                display: "flex",
+                gap: "12px",
+                justifyContent: "center",
+                marginTop: "20px"
+              }}
+            >
+              <button
+                className="bookmark-btn"
+                onClick={() => {
+                  clearTimeout(pendingQuestionDelete.timeoutId);
+                  clearInterval(pendingQuestionDelete.intervalId);
+                  restoreQuestion(pendingQuestionDelete.question);
+                  setPendingQuestionDelete(null);
+                }}
+              >
+                Undo
+              </button>
+              <button
+                className="bookmark-btn"
+                onClick={() => {
+                  setHasGoneBack(true);
+                  window.history.back();
+                }}
+              >
+                Go Back to questions
+              </button>
+            </div>
+          </div>
+        </main>
+      </div>
+    </>
+  );
+}
 
   return (
     <>
@@ -765,17 +824,41 @@ const handleSubmitReply = async () => {
                               "Are you sure you want to delete this question?"
                             );
                             if (!confirmed) return;
-                            try {
-                              await deleteQuery(question.id);
-                              await refreshQuestions();
-                              window.history.back();
-                            } catch (err) {
-                              setError(err.message || "Failed to delete question.");
-                            }
-                          }}
-                        >
-                         🗑 Delete
-                        </button>
+                           const deletedQuestion = question;
+                           deleteQuestion(question.id);
+                           let countdown = 10;
+                           const intervalId = setInterval(() => {
+                             countdown--;
+                           setPendingQuestionDelete(prev => {
+                             if (!prev) return null;
+                             return {
+                               ...prev,
+                               countdown
+                             };
+                           });
+                         }, 1000);
+                         const timeoutId = setTimeout(async () => {
+                           clearInterval(intervalId);
+                           try {
+                             await deleteQuery(deletedQuestion.id);
+                             await refreshQuestions();
+                             setPendingQuestionDelete(null);
+                             if (!hasGoneBack) {
+                              window.history.back();}
+                           } catch (err) {
+                             setError(err.message || "Failed to delete question.");
+                           }
+                         }, 10000);
+                         setPendingQuestionDelete({
+                           question: deletedQuestion,
+                           countdown: 10,
+                           timeoutId,
+                           intervalId
+                         });
+                       }}
+                      >
+                        🗑 Delete
+                      </button>
                   )}
 
                       <div style={{ position: "relative" }} ref={followMenuRef}>

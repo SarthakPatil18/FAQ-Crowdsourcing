@@ -610,6 +610,9 @@ export function FAQProvider({ children }) {
       )
     );
   };
+  const restoreQuestion = (question) => {
+    setQuestions((prev) => [question, ...prev]);
+  };
   const upvoteQuestion = async (id) => {
     requireLoggedInAction("upvote");
 
@@ -813,6 +816,7 @@ export function FAQProvider({ children }) {
         bookmarkQuestion,
         editQuestion,
         deleteQuestion,
+        restoreQuestion,
         addAnswer,
         upvoteAnswer,
         backendOnline,
