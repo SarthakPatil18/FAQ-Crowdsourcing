@@ -669,19 +669,22 @@ export function FAQProvider({ children }) {
       throw err;
     }
   };
-  const addAnswer = async (questionId, content) => {
+  const addAnswer = async (questionId, content, sourceType = "faq") => {
     requireLoggedInAction("submit an answer");
     const cleanContent = content.trim();
     if (!cleanContent) return null;
 
     const author = user?.name || "Community Member";
 
+    const payload = { content: cleanContent, author };
+    if (sourceType === "query") {
+      payload.queryId = questionId;
+    } else {
+      payload.questionId = questionId;
+    }
+
     try {
-      const response = await submitAnswer({
-        questionId,
-        content: cleanContent,
-        author
-      });
+      const response = await submitAnswer(payload);
 
       const savedAnswer = response.data;
 

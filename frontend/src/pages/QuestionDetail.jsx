@@ -24,7 +24,7 @@ const defaultQuestion = {
 };
 
 function QuestionDetail() {
-  const { questions, editQuestion, deleteQuestion, upvoteQuestion, bookmarkQuestion, addAnswer, upvoteAnswer } = useFAQ();
+  const { questions, upvoteQuestion, bookmarkQuestion, addAnswer, upvoteAnswer, setQuestionAnswers, loadingQuestions, refreshQuestions } = useFAQ();
   const { id } = useParams();
   const [showModal, setShowModal] = useState(false);
   const [replyText, setReplyText] = useState("");
@@ -166,17 +166,17 @@ function QuestionDetail() {
     }
   };
 
-  useEffect(() => {
+useEffect(() => {
+    if (loadingQuestions) return;
+
     if (id && id !== "test-id" && id !== "undefined") {
       loadAnswers(0);
       loadTranslations();
       loadBounties();
-    } else {
-      if (question && question.answers) {
-        setAnswers(question.answers);
-      }
+    } else if (question && question.answers) {
+      setAnswers(question.answers);
     }
-  }, [id, question.answers]);
+  }, [id, question.answers, loadingQuestions]);
 
   // Scroll to top on navigation to different question
   useEffect(() => {
@@ -311,10 +311,20 @@ function QuestionDetail() {
     if (question.id) upvoteAnswer(question.id, answerId);
   };
 
-  const handleSubmitReply = () => {
+const handleSubmitReply = async () => {
     if (replyText.trim() && question.id) {
-      addAnswer(question.id, replyText);
-      setReplyText("");
+      console.log("DEBUG sourceType:", question.sourceType, "full question:", question);
+      try {
+        const newAnswer = await addAnswer(question.id, replyText, question.sourceType || "faq");
+        if (newAnswer) {
+          setAnswers((prev) => [newAnswer, ...prev]);
+        }
+        setReplyText("");
+        setError("");
+      } catch (err) {
+        console.error("Failed to submit answer:", err);
+        setError(err.message || "Failed to post your answer.");
+      }
     }
   };
 
@@ -536,7 +546,7 @@ function QuestionDetail() {
                               category: editQuestionData.category,
                               tags: editQuestionData.hashtags
                             });
-                            editQuestion(question.id, editQuestionData);
+                            await refreshQuestions();
                             setIsEditingQuestion(false);
                           } catch (err) {
                             console.error(err);
@@ -740,7 +750,7 @@ function QuestionDetail() {
                             if (!confirmed) return;
                             try {
                               await deleteQuery(question.id);
-                              deleteQuestion(question.id);
+                              await refreshQuestions();
                               window.history.back();
                             } catch (err) {
                               setError(err.message || "Failed to delete question.");
@@ -828,7 +838,7 @@ function QuestionDetail() {
 
               <section className="answers-section">
                 <h2 className="answers-heading">
-                  {question.answers ? question.answers.length : 0} {question.answers && question.answers.length === 1 ? "Answer" : "Answers"}
+                  {answers ? answers.length : 0} {answers && answers.length === 1 ? "Answer" : "Answers"}
                 </h2>
 
                 {answers && answers.map((answer) => (
