@@ -11,12 +11,14 @@ import Analytics from "../components/profile/Analytics";
 import RecentActivity from "../components/profile/RecentActivity";
 import QuickLinks from "../components/profile/QuickLinks";
 import { useAuth } from "../context/AuthContext";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import AnalyticsTab from "../components/profile/AnalyticsTab";
 import NotificationPreferences from "../components/profile/NotificationPreferences";
 
 function Profile() {
-  const [activeTab, setActiveTab] = useState("Overview");
+  const location = useLocation();
+  const [activeTab, setActiveTab] = useState(
+    location.state?.activeTab || "Overview");
   const { user, loading } = useAuth();
 
   if (loading) {
