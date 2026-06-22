@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
 import ProfileHeader from "../components/profile/ProfileHeader";
@@ -19,6 +19,13 @@ function Profile() {
   const location = useLocation();
   const [activeTab, setActiveTab] = useState(
     location.state?.activeTab || "Overview");
+
+    useEffect(() => {
+  if (location.state?.activeTab) {
+    setActiveTab(location.state.activeTab);
+  }
+}, [location.state]);
+
   const { user, loading } = useAuth();
 
   if (loading) {
