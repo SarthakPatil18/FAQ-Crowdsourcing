@@ -613,6 +613,32 @@ export function FAQProvider({ children }) {
   const restoreQuestion = (question) => {
     setQuestions((prev) => [question, ...prev]);
   };
+  const removeAnswerLocally = (questionId, answerId) => {
+  setQuestions((prev) =>
+    prev.map((q) =>
+      String(q.id) === String(questionId)
+        ? {
+            ...q,
+            answers: (q.answers || []).filter(
+              (a) => String(a.id) !== String(answerId)
+            )
+          }
+        : q
+    )
+  );
+};
+const restoreAnswerLocally = (questionId, answer) => {
+  setQuestions((prev) =>
+    prev.map((q) =>
+      String(q.id) === String(questionId)
+        ? {
+            ...q,
+            answers: [answer, ...(q.answers || [])]
+          }
+        : q
+    )
+  );
+};
   const upvoteQuestion = async (id) => {
     requireLoggedInAction("upvote");
 
@@ -693,6 +719,7 @@ export function FAQProvider({ children }) {
 
       const newAnswer = {
         id: savedAnswer._id || savedAnswer.id,
+        userId: savedAnswer.userId || savedAnswer.user_id || user?.id,
         author: savedAnswer.author || author,
         avatar: (savedAnswer.author || author).charAt(0).toUpperCase(),
         content: savedAnswer.content,
@@ -817,6 +844,8 @@ export function FAQProvider({ children }) {
         editQuestion,
         deleteQuestion,
         restoreQuestion,
+        removeAnswerLocally,
+        restoreAnswerLocally,
         addAnswer,
         upvoteAnswer,
         backendOnline,

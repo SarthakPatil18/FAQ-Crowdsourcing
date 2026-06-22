@@ -24,7 +24,7 @@ const defaultQuestion = {
 };
 
 function QuestionDetail() {
-  const { questions, upvoteQuestion, bookmarkQuestion, addAnswer, upvoteAnswer, loadingQuestions, refreshQuestions, deleteQuestion, restoreQuestion } = useFAQ();
+  const { questions, upvoteQuestion, bookmarkQuestion, addAnswer, upvoteAnswer, loadingQuestions, refreshQuestions, deleteQuestion, restoreQuestion, removeAnswerLocally, restoreAnswerLocally } = useFAQ();
   const { id } = useParams();
   const [showModal, setShowModal] = useState(false);
   const [replyText, setReplyText] = useState("");
@@ -39,6 +39,7 @@ function QuestionDetail() {
   const [showBountyForm, setShowBountyForm] = useState(false);
   const [bountyLoading, setBountyLoading] = useState(false);
   const [pendingQuestionDelete, setPendingQuestionDelete] = useState(null);
+  const [pendingAnswerDelete, setPendingAnswerDelete] = useState(null);
   const [hasGoneBack, setHasGoneBack] = useState(false);
 
   const [followData, setFollowData] = useState({
@@ -182,7 +183,7 @@ useEffect(() => {
     } else if (question && question.answers) {
       setAnswers(question.answers);
     }
-  }, [id, question.answers, loadingQuestions]);
+  }, [id, loadingQuestions]);
 
   // Scroll to top on navigation to different question
   useEffect(() => {
@@ -923,6 +924,46 @@ const handleSubmitReply = async () => {
                 </div>
               </div>
 
+              {pendingAnswerDelete && (
+                <div
+                  style={{
+                    marginBottom: "16px",
+                    padding: "12px 16px",
+                    borderRadius: "8px",
+                    backgroundColor: "rgba(245, 158, 11, 0.1)",
+                    border: "1px solid rgba(245, 158, 11, 0.3)",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center"
+                  }}
+                >
+                  <span>
+                    Answer deleted. Undo available for{" "}
+                    {pendingAnswerDelete.countdown} seconds.
+                  </span>
+
+                  <button
+                    className="bookmark-btn"
+                    onClick={() => {
+                      clearTimeout(pendingAnswerDelete.timeoutId);
+                      clearInterval(pendingAnswerDelete.intervalId);
+
+                      setAnswers((prev) => [
+                        pendingAnswerDelete.answer,
+                        ...prev
+                      ]);
+                      restoreAnswerLocally(
+                        question.id,
+                        pendingAnswerDelete.answer
+                      );
+                      setPendingAnswerDelete(null);
+                    }}
+                  >
+                    Undo
+                  </button>
+                </div>
+              )}
+
               <section className="answers-section">
                 <h2 className="answers-heading">
                   {answers ? answers.length : 0} {answers && answers.length === 1 ? "Answer" : "Answers"}
@@ -1053,19 +1094,52 @@ const handleSubmitReply = async () => {
                     {canDelete(answer) && (
                       <button
                         className="bookmark-btn danger-button"
-                        onClick={async () => {
-                          try {
-                            const confirmed = window.confirm(
-                              "Are you sure you want to delete this answer?"
-                            );
-                            if (!confirmed) return;
-                            await deleteAnswer(answer.id);
-                            setAnswers((prev) =>
-                              prev.filter((item) => String(item.id) !== String(answer.id))
-                            );
-                          } catch (err) {
-                            setError(err.message || "Failed to delete answer.");
-                          }
+                        onClick={() => {
+                          const confirmed = window.confirm(
+                            "Are you sure you want to delete this answer?"
+                          );
+
+                          if (!confirmed) return;
+
+                          const deletedAnswer = answer;
+
+                          setAnswers((prev) =>
+                            prev.filter((item) => String(item.id) !== String(answer.id))
+                          );
+                          removeAnswerLocally(question.id, answer.id);
+                          let countdown = 10;
+
+                          const intervalId = setInterval(() => {
+                            countdown--;
+
+                            setPendingAnswerDelete((prev) => {
+                              if (!prev) return null;
+
+                              return {
+                                ...prev,
+                                countdown
+                              };
+                            });
+                          }, 1000);
+
+                          const timeoutId = setTimeout(async () => {
+                            clearInterval(intervalId);
+
+                            try {
+                              await deleteAnswer(deletedAnswer.id);
+                              setPendingAnswerDelete(null);
+                              await loadAnswers(0);
+                            } catch (err) {
+                              setError(err.message || "Failed to delete answer.");
+                            }
+                          }, 10000);
+
+                          setPendingAnswerDelete({
+                            answer: deletedAnswer,
+                            countdown: 10,
+                            timeoutId,
+                            intervalId
+                          });
                         }}
                       >
                         🗑 Delete
