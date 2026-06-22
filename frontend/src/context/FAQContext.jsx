@@ -264,14 +264,27 @@ function extractEnvelopeArray(response) {
 }
 
 function normalizeTags(value) {
-  if (Array.isArray(value)) return value.filter(Boolean);
-  if (typeof value === "string") {
-    return value
+  let tags = [];
+  if (Array.isArray(value)) {
+    tags = value.filter(Boolean);
+  } else if (typeof value === "string") {
+    tags = value
       .split(",")
       .map((tag) => tag.trim().replace(/^#/, ""))
       .filter(Boolean);
   }
-  return [];
+
+  const uniqueTags = [];
+  const seen = new Set();
+  for (const tag of tags) {
+    const cleanTag = tag.trim();
+    const lower = cleanTag.toLowerCase();
+    if (cleanTag && !seen.has(lower)) {
+      seen.add(lower);
+      uniqueTags.push(cleanTag);
+    }
+  }
+  return uniqueTags;
 }
 
 function getExcerpt(description) {
@@ -575,7 +588,28 @@ export function FAQProvider({ children }) {
       return tempQuestion;
     }
   };
-
+  const editQuestion = (questionId, updatedData) => {
+  setQuestions((prev) =>
+    prev.map((q) =>
+      String(q.id || q._id) === String(questionId)
+        ? {
+            ...q,
+            title: updatedData.title,
+            description: updatedData.description,
+            category: updatedData.category,
+            hashtags: updatedData.hashtags
+          }
+        : q
+    )
+  );
+  }; 
+  const deleteQuestion = (questionId) => {
+    setQuestions((prev) =>
+      prev.filter(
+        (q) => String(q.id || q._id) !== String(questionId)
+      )
+    );
+  };
   const upvoteQuestion = async (id) => {
     requireLoggedInAction("upvote");
 
@@ -635,21 +669,22 @@ export function FAQProvider({ children }) {
       throw err;
     }
   };
-
-  const addAnswer = async (questionId, content) => {
+  const addAnswer = async (questionId, content, sourceType = "faq") => {
     requireLoggedInAction("submit an answer");
-
     const cleanContent = content.trim();
     if (!cleanContent) return null;
 
     const author = user?.name || "Community Member";
 
+    const payload = { content: cleanContent, author };
+    if (sourceType === "query") {
+      payload.queryId = questionId;
+    } else {
+      payload.questionId = questionId;
+    }
+
     try {
-      const response = await submitAnswer({
-        questionId,
-        content: cleanContent,
-        author
-      });
+      const response = await submitAnswer(payload);
 
       const savedAnswer = response.data;
 
@@ -776,6 +811,8 @@ export function FAQProvider({ children }) {
         addQuestion,
         upvoteQuestion,
         bookmarkQuestion,
+        editQuestion,
+        deleteQuestion,
         addAnswer,
         upvoteAnswer,
         backendOnline,

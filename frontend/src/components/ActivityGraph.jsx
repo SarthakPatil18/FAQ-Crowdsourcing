@@ -177,6 +177,7 @@ function ActivityGraph() {
         },
         ticks: {
           color: textColor,
+          precision: 0,
           font: {
             family: "DM Sans, sans-serif",
             size: 11,
