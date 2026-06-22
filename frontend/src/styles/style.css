@@ -6926,3 +6926,25 @@ html:has(.landing-container) {
   background: #111111;
   border-color: #2a2d3e;
 }
+
+.premium-settings-card {
+  color: #0f172a;
+}
+
+.premium-settings-card h3,
+.premium-settings-card h4,
+.premium-settings-card p,
+.premium-settings-card span,
+.premium-settings-card label {
+  color: inherit;
+}
+
+[data-theme="dark"] .profile-tab-btn.active {
+  color: #f8fafc;
+  border-bottom-color: #f8fafc;
+}
+
+[data-theme="dark"] .profile-card h2,
+[data-theme="dark"] .profile-card p {
+  color: #0f172a;
+}
