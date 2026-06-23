@@ -12,8 +12,7 @@ const eventSchema = new mongoose.Schema(
         "bookmark_created",
         "bookmark_removed",
         "faq_created",
-        "search_performed",
-        "faq_viewed"
+        "search_performed"
       ],
       required: true
     },

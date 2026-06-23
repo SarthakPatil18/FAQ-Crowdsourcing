@@ -182,32 +182,6 @@ app.use("/api/duplicates", duplicateRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/graphql", graphqlRoutes);
 app.use("/api/bounties", bountyRoutes);
-
-// POST /api/reports — user-submitted content reports (any authenticated user)
-const { requireAuth: requireAuthInline } = require("./middleware/auth");
-app.post("/api/reports", requireAuthInline, async (req, res) => {
-  try {
-    const { targetType, targetId, reason, details } = req.body;
-    if (!targetType || !targetId || !reason) {
-      return res.status(400).json({ status: "error", message: "targetType, targetId and reason are required" });
-    }
-    const db = getSQLiteDb();
-    // Gracefully handle missing reports table (not yet migrated) by falling back to a moderation record
-    try {
-      await db.run(
-        "INSERT INTO reports (reporter_id, target_type, target_id, reason, details, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-        [req.user.id, targetType, targetId, reason, details || null, new Date().toISOString()]
-      );
-    } catch (dbErr) {
-      // If reports table doesn't exist, log to console and still return success to the user
-      console.warn("reports table missing, report logged to console:", { reporter: req.user.id, targetType, targetId, reason, details });
-    }
-    return res.json({ status: "success", message: "Report submitted successfully" });
-  } catch (err) {
-    res.status(500).json({ status: "error", message: "Failed to submit report", details: err.message });
-  }
-});
-
 app.use("/api", aiRoutes);
 
 
