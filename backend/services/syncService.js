@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const { isMongoAvailable } = require("../db/mongo");
 const { enqueueJob } = require("./queueService");
 const { getSQLiteDb } = require("../db/sqlite");
@@ -195,9 +196,32 @@ async function syncSQLiteAnswersToMongo(db) {
         continue;
       }
 
+      let mappedQuestionId = null;
+      let mappedQueryId = null;
+
+      if (row.question_id) {
+        const isValidMongoId = mongoose.Types.ObjectId.isValid(row.question_id);
+        if (isValidMongoId) {
+          mappedQuestionId = row.question_id;
+        } else {
+          const faq = await db.get("SELECT mongo_id FROM faqs WHERE id = ?", row.question_id);
+          mappedQuestionId = faq?.mongo_id || null;
+        }
+      }
+
+      if (row.query_id) {
+        const isValidMongoId = mongoose.Types.ObjectId.isValid(row.query_id);
+        if (isValidMongoId) {
+          mappedQueryId = row.query_id;
+        } else {
+          const query = await db.get("SELECT mongo_id FROM user_queries WHERE id = ?", row.query_id);
+          mappedQueryId = query?.mongo_id || null;
+        }
+      }
+
       const answer = await withRetry(() => Answer.create({
-        questionId: row.question_id || null,
-        queryId: row.query_id || null,
+        questionId: mappedQuestionId,
+        queryId: mappedQueryId,
         content: row.content,
         author: row.author || row.author_name || "Community Member",
         userId: row.user_id || "anonymous",
@@ -531,14 +555,22 @@ async function syncSQLiteToMongo() {
     `);
 
     for (const row of unsyncedFaqs) {
+      const sourceQueryIdValue = row.mongo_id || row.source_query_id;
+      const isValidMongoId = mongoose.Types.ObjectId.isValid(sourceQueryIdValue);
+      
+      const orConditions = [
+        {
+          question: new RegExp(`^${escapeRegex(row.question)}$`, "i"),
+          userId: row.user_id || "anonymous"
+        }
+      ];
+      
+      if (sourceQueryIdValue && isValidMongoId) {
+        orConditions.push({ sourceQueryId: sourceQueryIdValue });
+      }
+
       const existingFaq = await FAQ.findOne({
-        $or: [
-          { sourceQueryId: row.mongo_id || row.source_query_id },
-          {
-            question: new RegExp(`^${escapeRegex(row.question)}$`, "i"),
-            userId: row.user_id || "anonymous"
-          }
-        ]
+        $or: orConditions
       });
 
       if (existingFaq) {

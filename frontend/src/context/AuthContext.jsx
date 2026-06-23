@@ -7,40 +7,42 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Load user profile on mount if token exists
-  useEffect(() => {
-    const loadUser = async () => {
-      const token = localStorage.getItem("crowdfaq-token");
-      if (!token) {
-        setLoading(false);
-        return;
-      }
+  const loadUser = async () => {
+    const token = localStorage.getItem("crowdfaq-token");
+    if (!token) {
+      setLoading(false);
+      return;
+    }
 
-      try {
-        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
-        const response = await fetch(`${apiBaseUrl}/auth/me`, {
-          headers: {
-            "Authorization": `Bearer ${token}`
-          }
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          setUser(data.user || data.data);
-        } else {
-          // Token expired or invalid
-          localStorage.removeItem("crowdfaq-token");
-          setUser(null);
+    try {
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
+      const response = await fetch(`${apiBaseUrl}/auth/me`, {
+        headers: {
+          "Authorization": `Bearer ${token}`
         }
-      } catch (err) {
-        console.error("Failed to load user profile on boot:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
+      });
 
+      if (response.ok) {
+        const data = await response.json();
+        setUser(data.user || data.data);
+      } else {
+        localStorage.removeItem("crowdfaq-token");
+        setUser(null);
+      }
+    } catch (err) {
+      console.error("Failed to load user profile on boot:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     loadUser();
   }, []);
+
+  const refreshUser = async () => {
+    await loadUser();
+  };
 
   const login = async (email, password) => {
     setError(null);
@@ -113,7 +115,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, error, login, signup, logout }}>
+    <AuthContext.Provider value={{ user, loading, error, login, signup, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

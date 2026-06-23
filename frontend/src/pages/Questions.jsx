@@ -361,7 +361,7 @@ function Questions() {
                           ))}
                         </div>
                         <div className="q-meta">
-                          👤 {q.author || "Community"} &nbsp; 💬 {q.answers ? q.answers.length : 0} answers &nbsp; {q.time}
+                          {q.isAnonymous ? "🕵️" : "👤"} {q.isAnonymous ? "Anonymous User" : (q.author || "Community")} &nbsp; 💬 {q.answers ? q.answers.length : 0} answers &nbsp; {q.time}
                         </div>
                       </div>
                     </div>
