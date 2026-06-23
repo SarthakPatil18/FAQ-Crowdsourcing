@@ -23,14 +23,12 @@ const initialQuestions = [
     voted: false,
     bookmarked: false,
     author: "Alex Chen",
-    authorId: "current-user",
     time: "2 days ago",
     views: 1240,
     answers: [
       {
         id: 1,
         author: "Dr. Sarah Kim",
-        authorId: "current-user",
         avatar: "S",
         content: "Great question! Here's the roadmap I recommend: 1) Start with Andrew Ng's ML course on Coursera. 2) Learn PyTorch — it's the industry standard now. 3) Build 3-4 projects: image classification, NLP sentiment analysis, a recommendation system. 4) Read the 'Attention Is All You Need' paper. 5) Start contributing to open-source ML projects. The key is consistency — spend 2-3 hours daily and you'll see progress within 6 months.",
         votes: 89,
@@ -257,63 +255,6 @@ function writeJsonArray(key, value) {
   }
 }
 
-function getPrototypeOverrides() {
-  return readJsonArray("crowdfaq_prototype_overrides").reduce((acc, curr) => {
-    acc[String(curr.id)] = curr;
-    return acc;
-  }, {});
-}
-
-function savePrototypeOverride(id, data) {
-  const current = readJsonArray("crowdfaq_prototype_overrides");
-  const existingIndex = current.findIndex(item => String(item.id) === String(id));
-  if (existingIndex >= 0) {
-    current[existingIndex] = { ...current[existingIndex], ...data };
-  } else {
-    current.push({ id: String(id), ...data });
-  }
-  writeJsonArray("crowdfaq_prototype_overrides", current);
-}
-
-function applyOverrides(obj) {
-  const overrides = getPrototypeOverrides();
-  const itemId = String(obj.id || obj._id || obj.mongo_id || "");
-  
-  let newObj = { ...obj };
-  
-  if (overrides[itemId]) {
-    const itemOverride = overrides[itemId];
-    newObj = {
-      ...newObj,
-      isAnonymous: itemOverride.isAnonymous !== undefined ? itemOverride.isAnonymous : newObj.isAnonymous,
-      authorId: itemOverride.authorId || newObj.authorId,
-      originalAuthorName: itemOverride.originalAuthorName || newObj.originalAuthorName,
-      author: itemOverride.isAnonymous ? "Anonymous User" : (itemOverride.originalAuthorName || newObj.author),
-      avatar: itemOverride.isAnonymous ? "🕵️" : ((itemOverride.originalAuthorName || newObj.author || "C").charAt(0).toUpperCase())
-    };
-  }
-  
-  if (newObj.answers && Array.isArray(newObj.answers)) {
-    newObj.answers = newObj.answers.map(ans => {
-      const ansId = String(ans.id || ans._id || "");
-      if (overrides[ansId]) {
-        const ansOverride = overrides[ansId];
-        return {
-          ...ans,
-          isAnonymous: ansOverride.isAnonymous !== undefined ? ansOverride.isAnonymous : ans.isAnonymous,
-          authorId: ansOverride.authorId || ans.authorId,
-          originalAuthorName: ansOverride.originalAuthorName || ans.originalAuthorName,
-          author: ansOverride.isAnonymous ? "Anonymous User" : (ansOverride.originalAuthorName || ans.author),
-          avatar: ansOverride.isAnonymous ? "🕵️" : ((ansOverride.originalAuthorName || ans.author || "C").charAt(0).toUpperCase())
-        };
-      }
-      return ans;
-    });
-  }
-  
-  return newObj;
-}
-
 function extractEnvelopeArray(response) {
   if (Array.isArray(response)) return response;
   if (Array.isArray(response?.data)) return response.data;
@@ -356,7 +297,7 @@ function getExcerpt(description) {
 function normalizeFaqToQuestion(faq) {
   const id = String(faq.id || faq._id || faq.mongo_id || "");
   const desc = faq.description || faq.answer || "";
-  return applyOverrides({
+  return {
     ...faq,
     id,
     sourceType: "faq",
@@ -379,13 +320,13 @@ function normalizeFaqToQuestion(faq) {
     createdAt: faq.createdAt || faq.created_at || new Date().toISOString(),
     updatedAt: faq.updatedAt || faq.updated_at || faq.createdAt || faq.created_at,
     pendingSync: false
-  });
+  };
 }
 
 function normalizeQueryToQuestion(query) {
   const id = String(query.id || query._id || query.mongo_id || "");
   const desc = query.description || query.answer || "";
-  return applyOverrides({
+  return {
     ...query,
     id,
     sourceType: "query",
@@ -408,13 +349,13 @@ function normalizeQueryToQuestion(query) {
     createdAt: query.createdAt || query.created_at || new Date().toISOString(),
     updatedAt: query.updatedAt || query.updated_at || query.createdAt || query.created_at,
     pendingSync: false
-  });
+  };
 }
 
 function normalizeLocalQuestion(question) {
   const id = String(question.id || `local-${crypto.randomUUID()}`);
   const desc = question.description || question.answer || "";
-  return applyOverrides({
+  return {
     ...question,
     id,
     sourceType: question.sourceType || "query",
@@ -430,15 +371,12 @@ function normalizeLocalQuestion(question) {
     voted: Boolean(question.voted),
     bookmarked: Boolean(question.bookmarked),
     author: question.author || question.authorName || "Anonymous",
-    authorId: question.authorId,
-    originalAuthorName: question.originalAuthorName,
-    isAnonymous: Boolean(question.isAnonymous),
     time: question.createdAt || question.created_at || question.time || "Just now",
     views: question.views || 0,
     answers: question.answers || [],
     createdAt: question.createdAt || question.created_at || new Date().toISOString(),
     pendingSync: Boolean(question.pendingSync)
-  });
+  };
 }
 
 function mergeQuestionLists(...lists) {
@@ -454,28 +392,9 @@ function mergeQuestionLists(...lists) {
     }
 
     const existing = map.get(key);
-    
-    // Preserve existing offline answers, but filter out those that have already been synced (matched by content and author)
-    const backendAnswers = normalized.answers || [];
-    const offlineExistingAnswers = (existing.answers || []).filter(a => {
-      const isOffline = a.isOffline || String(a.id).includes('-') || String(a.id).startsWith('local-');
-      if (!isOffline) return false;
-      
-      // If a backend answer has the exact same content and author, this offline answer was synced!
-      const isSynced = backendAnswers.some(ba => 
-        (ba.content || "").trim() === (a.content || "").trim() && 
-        (ba.author === a.author || ba.authorName === a.author || ba.authorName === a.authorName)
-      );
-      return !isSynced;
-    });
-    
-    const mergedAnswers = [...offlineExistingAnswers, ...backendAnswers];
-    const uniqueAnswers = Array.from(new Map(mergedAnswers.map(a => [String(a.id), a])).values());
-    
     map.set(key, {
       ...existing,
       ...normalized,
-      answers: uniqueAnswers,
       pendingSync: existing.pendingSync && !normalized.pendingSync
         ? false
         : normalized.pendingSync || existing.pendingSync
@@ -538,8 +457,7 @@ export function FAQProvider({ children }) {
           ? extractEnvelopeArray(queryResult.value).map(normalizeQueryToQuestion)
           : [];
 
-      const cachedQuestions = readJsonArray(QUESTIONS_CACHE_KEY);
-      const merged = mergeQuestionLists(cachedQuestions, unsyncedLocal, backendQueries, backendFaqs);
+      const merged = mergeQuestionLists(unsyncedLocal, backendQueries, backendFaqs);
 
       setQuestions(merged);
       writeJsonArray(QUESTIONS_CACHE_KEY, merged);
@@ -581,94 +499,7 @@ export function FAQProvider({ children }) {
 
   // Sync with Backend database on mount
   useEffect(() => {
-    const syncOfflineData = async () => {
-      const unsyncedQs = readJsonArray(UNSYNCED_QUESTIONS_KEY);
-      if (unsyncedQs.length === 0) return;
-
-      console.log("Attempting to sync offline data...", unsyncedQs);
-      let madeChanges = false;
-      let newQs = [...unsyncedQs];
-
-      for (let i = 0; i < newQs.length; i++) {
-        const q = newQs[i];
-        if (!String(q.id).startsWith("local-")) continue;
-
-        try {
-          const isFaq = q.sourceType === "faq";
-          let normalizedTags = normalizeTags(q.tags || q.hashtags);
-          if (normalizedTags.length === 0) {
-            normalizedTags = ["general"];
-          }
-          const payload = {
-            question: q.question || q.title,
-            category: q.category || "General",
-            tags: normalizedTags,
-            isAnonymous: Boolean(q.isAnonymous)
-          };
-          if (isFaq) {
-            payload.answer = q.description || q.answer || "No answer provided";
-          } else {
-            payload.description = q.description || q.answer || "";
-          }
-
-          const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
-          const endpoint = isFaq ? "/faqs" : "/queries";
-          
-          const token = localStorage.getItem("crowdfaq-token");
-          const headers = { "Content-Type": "application/json" };
-          if (token) headers["Authorization"] = `Bearer ${token}`;
-
-          const res = await fetch(`${apiBaseUrl}${endpoint}`, {
-            method: "POST",
-            headers,
-            body: JSON.stringify(payload)
-          });
-
-          if (res.ok) {
-            const data = await res.json();
-            const serverQ = data.data || data;
-            const serverId = String(serverQ._id || serverQ.id);
-
-            console.log(`Successfully synced offline question ${q.id} -> ${serverId}`);
-            
-            // Sync its offline answers too
-            const answers = q.answers || [];
-            for (const a of answers) {
-              // Any answer attached to an offline question is inherently offline.
-              try {
-                await fetch(`${apiBaseUrl}/answers`, {
-                  method: "POST",
-                  headers,
-                  body: JSON.stringify({
-                    questionId: serverId,
-                    queryId: null,
-                    content: a.content,
-                    author: a.author
-                  })
-                });
-              } catch (e) {
-                console.error("Failed to sync offline answer", e);
-              }
-            }
-
-            // Remove from unsynced
-            newQs.splice(i, 1);
-            i--; // adjust index since we spliced
-            madeChanges = true;
-          }
-        } catch (e) {
-          console.error("Failed to sync offline question", q.id, e);
-        }
-      }
-
-      if (madeChanges) {
-        writeJsonArray(UNSYNCED_QUESTIONS_KEY, newQs);
-      }
-    };
-
-    syncOfflineData().then(() => {
-      loadQuestionsFromAllSources();
-    });
+    loadQuestionsFromAllSources();
   }, []);
 
   function requireLoggedInAction(actionName) {
@@ -677,65 +508,10 @@ export function FAQProvider({ children }) {
     }
   }
 
-  const checkAnonymousRateLimit = () => {
-    const key = "crowdfaq_anon_timestamps";
-    const now = Date.now();
-    const timestamps = readJsonArray(key).filter(t => now - t < 24 * 60 * 60 * 1000);
-    if (timestamps.length >= 3) {
-      throw new Error("Rate limit exceeded: You can only make 3 anonymous posts per 24 hours.");
-    }
-    writeJsonArray(key, [...timestamps, now]);
-  };
-
-  const toggleAnonymity = (itemId, type = "question") => {
-    const current = getPrototypeOverrides();
-    const itemOverride = current[String(itemId)] || {};
-    const newIsAnon = itemOverride.isAnonymous === undefined ? true : !itemOverride.isAnonymous;
-    
-    let originalName = itemOverride.originalAuthorName;
-    let authorId = itemOverride.authorId;
-    
-    if (!originalName || !authorId) {
-      if (type === "question") {
-        const q = questions.find(q => String(q.id) === String(itemId));
-        if (q) {
-          originalName = originalName || q.originalAuthorName || q.author;
-          authorId = authorId || q.authorId || (user?.id || "current-user");
-        }
-      } else {
-        questions.forEach(q => {
-          const a = (q.answers || []).find(ans => String(ans.id) === String(itemId));
-          if (a) {
-            originalName = originalName || a.originalAuthorName || a.author;
-            authorId = authorId || a.authorId || (user?.id || "current-user");
-          }
-        });
-      }
-    }
-    
-    savePrototypeOverride(itemId, {
-      isAnonymous: newIsAnon,
-      originalAuthorName: originalName || "Community Member",
-      authorId: authorId || "current-user"
-    });
-
-    setQuestions((prev) => prev.map((q) => applyOverrides(q)));
-  };
-
-  const addQuestion = async (title, category, description, hashtagsString, isAnonymous = false) => {
+  const addQuestion = async (title, category, description, hashtagsString) => {
     requireLoggedInAction("ask a question");
 
-    if (isAnonymous) {
-      checkAnonymousRateLimit();
-    }
-
-    let authorName = user ? user.name : "Guest";
-    const currentAuthorId = user?.id || "current-user";
-
-    // TODO: Backend support for anonymous mode will be implemented later
-    if (isAnonymous) {
-      authorName = "Anonymous User";
-    }
+    const authorName = user ? user.name : "Guest";
 
     const tempQuestion = normalizeLocalQuestion({
       id: `local-${crypto.randomUUID()}`,
@@ -750,9 +526,6 @@ export function FAQProvider({ children }) {
       pendingSync: true,
       author: authorName,
       authorName: authorName,
-      authorId: currentAuthorId,
-      originalAuthorName: user ? user.name : "Guest",
-      isAnonymous: isAnonymous,
       createdAt: new Date().toISOString()
     });
 
@@ -768,28 +541,14 @@ export function FAQProvider({ children }) {
     });
 
     try {
-      let normalizedTags = normalizeTags(hashtagsString);
-      if (normalizedTags.length === 0) {
-        normalizedTags = ["general"];
-      }
-
       const response = await submitQuery({
         question: title,
         description,
         category,
-        tags: normalizedTags,
-        isAnonymous: isAnonymous
+        tags: normalizeTags(hashtagsString)
       });
 
       const serverQuestion = normalizeQueryToQuestion(response?.data || response);
-      
-      savePrototypeOverride(serverQuestion.id, {
-        isAnonymous,
-        authorId: currentAuthorId,
-        originalAuthorName: user ? user.name : "Guest"
-      });
-
-      const updatedServerQuestion = applyOverrides(serverQuestion);
 
       const remainingUnsynced = readJsonArray(UNSYNCED_QUESTIONS_KEY)
         .filter((item) => item.id !== tempQuestion.id);
@@ -798,7 +557,7 @@ export function FAQProvider({ children }) {
 
       setQuestions((prev) => {
         const withoutTemp = prev.filter((item) => item.id !== tempQuestion.id);
-        const merged = mergeQuestionLists([updatedServerQuestion], withoutTemp);
+        const merged = mergeQuestionLists([serverQuestion], withoutTemp);
         writeJsonArray(QUESTIONS_CACHE_KEY, merged);
         return merged;
       });
@@ -822,7 +581,7 @@ export function FAQProvider({ children }) {
       // Important: reload from both /faqs and /queries after server write.
       await loadQuestionsFromAllSources();
 
-      return updatedServerQuestion;
+      return serverQuestion;
     } catch (error) {
       console.warn("Question saved locally as unsynced because backend write failed:", error);
       setBackendOnline(false);
@@ -939,114 +698,73 @@ const restoreAnswerLocally = (questionId, answer) => {
       throw err;
     }
   };
-  const addAnswer = async (questionId, content, sourceType = "faq", isAnonymous = false) => {
+  const addAnswer = async (questionId, content, sourceType = "faq") => {
     requireLoggedInAction("submit an answer");
     const cleanContent = content.trim();
     if (!cleanContent) return null;
 
-    if (isAnonymous) {
-      checkAnonymousRateLimit();
-    }
+    const author = user?.name || "Community Member";
 
-    const currentAuthorId = user?.id || "current-user";
-    const originalAuthorName = user?.name || "Community Member";
-    let author = originalAuthorName;
-    
-    if (isAnonymous) {
-      author = "Anonymous User";
-    }
-
-    const payload = { content: cleanContent, author, isAnonymous };
+    const payload = { content: cleanContent, author };
     if (sourceType === "query") {
       payload.queryId = questionId;
     } else {
       payload.questionId = questionId;
     }
 
-    const constructLocalAnswer = (savedId) => ({
-      id: savedId,
-      userId: user?.id,
-      authorId: currentAuthorId,
-      originalAuthorName: originalAuthorName,
-      isAnonymous: isAnonymous,
-      author: author,
-      avatar: isAnonymous ? "🕵️" : author.charAt(0).toUpperCase(),
-      content: cleanContent,
-      votes: 0,
-      time: "Just now",
-      isBest: false,
-      voted: false
-    });
-
     try {
       const response = await submitAnswer(payload);
-      const savedAnswer = response.data;
-      
-      savePrototypeOverride(savedAnswer._id || savedAnswer.id, {
-        isAnonymous,
-        authorId: currentAuthorId,
-        originalAuthorName: originalAuthorName
-      });
-      
-      const newAnswer = applyOverrides({
-        ...constructLocalAnswer(savedAnswer._id || savedAnswer.id),
-        votes: savedAnswer.votes || 0,
-        isBest: savedAnswer.isBest || false,
-      });
 
-      setQuestions((prev) => {
-        const next = prev.map((q) =>
+      const savedAnswer = response.data;
+
+      const newAnswer = {
+        id: savedAnswer._id || savedAnswer.id,
+        userId: savedAnswer.userId || savedAnswer.user_id || user?.id,
+        author: savedAnswer.author || author,
+        avatar: (savedAnswer.author || author).charAt(0).toUpperCase(),
+        content: savedAnswer.content,
+        votes: savedAnswer.votes || 0,
+        time: "Just now",
+        isBest: savedAnswer.isBest || false,
+        voted: false
+      };
+
+      setQuestions((prev) =>
+        prev.map((q) =>
           String(q.id) === String(questionId)
             ? {
                 ...q,
                 answers: [newAnswer, ...(q.answers || [])]
               }
             : q
-        );
-        writeJsonArray(QUESTIONS_CACHE_KEY, next);
-        
-        const unsynced = readJsonArray(UNSYNCED_QUESTIONS_KEY);
-        if (unsynced.some(q => String(q.id) === String(questionId))) {
-           const nextUnsynced = unsynced.map(q => 
-             String(q.id) === String(questionId) 
-               ? { ...q, answers: [newAnswer, ...(q.answers || [])] }
-               : q
-           );
-           writeJsonArray(UNSYNCED_QUESTIONS_KEY, nextUnsynced);
-        }
-        
-        return next;
-      });
+        )
+      );
 
       return newAnswer;
     } catch (err) {
       console.warn("Answer backend write failed. Saving locally:", err.message);
 
-      const fallbackAnswer = constructLocalAnswer(crypto.randomUUID());
+      const fallbackAnswer = {
+        id: crypto.randomUUID(),
+        author,
+        avatar: author.charAt(0).toUpperCase(),
+        content: cleanContent,
+        votes: 0,
+        time: "Just now",
+        isBest: false,
+        voted: false
+      };
 
-      setQuestions((prev) => {
-        const next = prev.map((q) =>
+      setQuestions((prev) =>
+        prev.map((q) =>
           String(q.id) === String(questionId)
             ? {
                 ...q,
                 answers: [fallbackAnswer, ...(q.answers || [])]
               }
             : q
-        );
-        writeJsonArray(QUESTIONS_CACHE_KEY, next);
-        
-        const unsynced = readJsonArray(UNSYNCED_QUESTIONS_KEY);
-        if (unsynced.some(q => String(q.id) === String(questionId))) {
-           const nextUnsynced = unsynced.map(q => 
-             String(q.id) === String(questionId) 
-               ? { ...q, answers: [fallbackAnswer, ...(q.answers || [])] }
-               : q
-           );
-           writeJsonArray(UNSYNCED_QUESTIONS_KEY, nextUnsynced);
-        }
-        
-        return next;
-      });
+        )
+      );
 
       return fallbackAnswer;
     }
@@ -1130,7 +848,6 @@ const restoreAnswerLocally = (questionId, answer) => {
         restoreAnswerLocally,
         addAnswer,
         upvoteAnswer,
-        toggleAnonymity,
         backendOnline,
         loadingQuestions,
         pagination,

@@ -26,9 +26,7 @@ async function request(path, options = {}, attempt = 0) {
     const payload = text ? JSON.parse(text) : {};
 
     if (!response.ok) {
-      const err = new Error(payload.message || payload.error || `Request failed: ${response.status}`);
-      if (payload.code) err.code = payload.code;
-      throw err;
+      throw new Error(payload.message || payload.error || `Request failed: ${response.status}`);
     }
 
     return payload;
@@ -229,47 +227,22 @@ export async function fetchFaqTranslations(faqId) {
   return request(`/faqs/${faqId}/translations`);
 }
 
-/**
- * Fetches all open bounties and filters them client-side by queryId.
- * @param {string} queryId - The ID of the question to find bounties for.
- * @returns {Promise<Array<{id: string, queryId: string, amount: number, createdBy: string, status: string, expiresAt: string, createdAt: string}>>} List of open bounties for the query.
- */
-export async function getBounties(queryId) {
-  const res = await request("/bounties");
-  const bounties = res?.data || [];
-  return bounties.filter(b => String(b.queryId || b.query_id) === String(queryId));
-}
-
-/**
- * Creates a new bounty for a specific question.
- * @param {string} queryId - The ID of the question.
- * @param {number} amount - The reputation amount to offer.
- * @param {number} [durationDays] - Optional duration in days.
- * @returns {Promise<{status: string, data: {id: string, queryId: string, amount: number, createdBy: string, expiresAt: string, status: string}}>}
- */
-export async function createBounty(queryId, amount, durationDays) {
-  const body = { queryId, amount };
-  if (durationDays !== undefined) {
-    body.durationDays = durationDays;
-  }
+export async function createBounty(payload) {
   return request("/bounties", {
     method: "POST",
-    body: JSON.stringify(body)
+    body: JSON.stringify(payload)
   });
 }
 
-/**
- * Awards a bounty to a specific answer.
- * @param {string} bountyId - The ID of the bounty to award.
- * @param {string} answerId - The ID of the winning answer.
- * @returns {Promise<{status: string}>}
- */
-export async function awardBounty(bountyId, answerId) {
-  await request(`/bounties/${bountyId}/award`, {
+export async function awardBounty(bountyId, payload) {
+  return request(`/bounties/${bountyId}/award`, {
     method: "POST",
-    body: JSON.stringify({ answerId })
+    body: JSON.stringify(payload)
   });
-  return { status: "success" };
+}
+
+export async function fetchBounties() {
+  return request("/bounties");
 }
 
 export async function fetchNotificationPreferences() {
@@ -342,18 +315,4 @@ export async function queryGraphQL(query, variables = {}) {
 
 export async function fetchContributorLeaderboard() {
   return request("/contributors/leaderboard");
-}
-
-/**
- * Submits a content report to the moderation queue.
- * @param {string} targetId - The ID of the content being reported.
- * @param {"question"|"answer"} targetType - The type of content.
- * @param {string} reason - The selected reason code.
- * @param {string} [details] - Optional free-text details.
- */
-export async function submitReport({ targetId, targetType, reason, details }) {
-  return request("/reports", {
-    method: "POST",
-    body: JSON.stringify({ targetId, targetType, reason, details })
-  });
 }
