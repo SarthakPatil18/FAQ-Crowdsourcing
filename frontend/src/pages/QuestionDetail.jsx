@@ -6,8 +6,9 @@ import AskQuestionModal from "../components/AskQuestionModal";
 import Hashtag from "../components/Hashtag";
 import { useFAQ } from "../context/FAQContext";
 import { useAuth } from "../context/AuthContext";
-import { deleteFaq, deleteQuery, updateAnswer, deleteAnswer, updateQuery, followResource, unfollowResource, muteFollow, fetchAnswers, fetchFaqTranslations, createFaqTranslation, createBounty, awardBounty, fetchBounties } from "../api/faqApi";
+import { deleteFaq, deleteQuery, updateAnswer, deleteAnswer, updateQuery, followResource, unfollowResource, muteFollow, fetchAnswers, fetchFaqTranslations, createFaqTranslation, submitReport } from "../api/faqApi";
 import ErrorToast from "../components/ErrorToast";
+import BountyPanel from "../components/bounties/BountyPanel";
 
 const defaultQuestion = {
   title: "Question Not Found",
@@ -24,19 +25,17 @@ const defaultQuestion = {
 };
 
 function QuestionDetail() {
-  const { questions, upvoteQuestion, bookmarkQuestion, addAnswer, upvoteAnswer, loadingQuestions, refreshQuestions, deleteQuestion, restoreQuestion, removeAnswerLocally, restoreAnswerLocally } = useFAQ();
+  const { questions, upvoteQuestion, bookmarkQuestion, addAnswer, upvoteAnswer, toggleAnonymity, loadingQuestions, refreshQuestions, deleteQuestion, restoreQuestion, removeAnswerLocally, restoreAnswerLocally } = useFAQ();
   const { id } = useParams();
   const [showModal, setShowModal] = useState(false);
   const [replyText, setReplyText] = useState("");
+  const [isAnonymousReply, setIsAnonymousReply] = useState(false);
   const [summary, setSummary] = useState("");
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryError, setSummaryError] = useState("");
   const [translations, setTranslations] = useState([]);
   const [selectedLanguage, setSelectedLanguage] = useState("original");
   const [translating, setTranslating] = useState(false);
-  const [activeBounty, setActiveBounty] = useState(null);
-  const [bountyAmount, setBountyAmount] = useState(50);
-  const [showBountyForm, setShowBountyForm] = useState(false);
   const [bountyLoading, setBountyLoading] = useState(false);
   const [pendingQuestionDelete, setPendingQuestionDelete] = useState(null);
   const [pendingAnswerDelete, setPendingAnswerDelete] = useState(null);
@@ -68,6 +67,13 @@ function QuestionDetail() {
   const getQuestionId = (item) => String(item.id || item._id || item.mongo_id || "");
   const question = questions.find((item) => getQuestionId(item) === String(id)) || defaultQuestion;
 
+  const [reportModalOpen, setReportModalOpen] = useState(false);
+  const [reportTarget, setReportTarget] = useState(null);
+  const [reportReason, setReportReason] = useState("");
+  const [reportDetails, setReportDetails] = useState("");
+  const [reportSubmitting, setReportSubmitting] = useState(false);
+  const [reportError, setReportError] = useState("");
+
   const [answersPagination, setAnswersPagination] = useState({ limit: 10, offset: 0, total: 0 });
 
   const loadAnswers = async (page = 0) => {
@@ -88,7 +94,9 @@ function QuestionDetail() {
           time: ans.createdAt || ans.created_at || "Recently",
           isBest: Boolean(ans.isBest || ans.is_best)
         }));
-        setAnswers(mapped);
+        const mappedIds = new Set(mapped.map(a => String(a.id)));
+        const localAnswers = (question.answers || []).filter(a => !mappedIds.has(String(a.id)));
+        setAnswers([...localAnswers, ...mapped]);
         if (res.meta?.pagination) {
           setAnswersPagination(res.meta.pagination);
         } else if (res.pagination) {
@@ -111,53 +119,6 @@ function QuestionDetail() {
     }
   };
 
-  const loadBounties = async () => {
-    try {
-      const res = await fetchBounties();
-      if (res && res.data) {
-        const match = res.data.find(b => String(b.queryId || b.query_id) === String(id) && b.status === "open");
-        setActiveBounty(match || null);
-      }
-    } catch (err) {
-      console.error("Failed to load bounties:", err);
-    }
-  };
-
-  const handleCreateBounty = async (e) => {
-    e.preventDefault();
-    setBountyLoading(true);
-    try {
-      await createBounty({
-        queryId: id,
-        amount: Number(bountyAmount),
-        durationDays: 7
-      });
-      setShowBountyForm(false);
-      await loadBounties();
-      setError("");
-    } catch (err) {
-      console.error("Failed to create bounty:", err);
-      setError(err.message || "Failed to create bounty. Note: You need enough reputation points.");
-    } finally {
-      setBountyLoading(false);
-    }
-  };
-
-  const handleAwardBounty = async (answerId) => {
-    if (!activeBounty) return;
-    try {
-      const bountyId = activeBounty.id || activeBounty._id;
-      await awardBounty(bountyId, { answerId });
-      setActiveBounty(null);
-      await loadBounties();
-      loadAnswers(0);
-      setError("");
-      alert("Bounty awarded successfully!");
-    } catch (err) {
-      console.error("Failed to award bounty:", err);
-      setError(err.message || "Failed to award bounty.");
-    }
-  };
 
   const handleTranslateClick = async (lang) => {
     setTranslating(true);
@@ -179,7 +140,6 @@ useEffect(() => {
     if (id && id !== "test-id" && id !== "undefined") {
       loadAnswers(0);
       loadTranslations();
-      loadBounties();
     } else if (question && question.answers) {
       setAnswers(question.answers);
     }
@@ -237,23 +197,26 @@ useEffect(() => {
 
   const relatedQuestions = getRelatedQuestions();
 
-  function canDelete(resource) {
-    if (!user || !resource) return false;
+  function isOwner(resource) {
+    if (!resource) return false;
+    const currentId = String(user?.id || "current-user");
 
-    return (
-      user.role === "admin" ||
-      String(resource.userId || resource.user_id) === String(user.id)
-    );
+    const ids = [resource.userId, resource.user_id, resource.authorId];
+    return ids.some(id => {
+      const strId = String(id);
+      return id && (strId === currentId || strId === "current-user");
+    });
+  }
+
+  function canDelete(resource) {
+    if (!resource) return false;
+    return user?.role === "admin" || isOwner(resource);
   }
 
   function canEdit(resource) {
-  if (!user || !resource) return false;
-
-  return (
-    user.role === "admin" ||
-    String(resource.userId || resource.user_id) === String(user.id)
-  );
-}
+    if (!resource) return false;
+    return user?.role === "admin" || isOwner(resource);
+  }
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -320,13 +283,13 @@ useEffect(() => {
 
 const handleSubmitReply = async () => {
     if (replyText.trim() && question.id) {
-      console.log("DEBUG sourceType:", question.sourceType, "full question:", question);
       try {
-        const newAnswer = await addAnswer(question.id, replyText, question.sourceType || "faq");
+        const newAnswer = await addAnswer(question.id, replyText, question.sourceType || "faq", isAnonymousReply);
         if (newAnswer) {
           setAnswers((prev) => [newAnswer, ...prev]);
         }
         setReplyText("");
+        setIsAnonymousReply(false);
         setError("");
       } catch (err) {
         console.error("Failed to submit answer:", err);
@@ -487,97 +450,7 @@ const handleSubmitReply = async () => {
                       )}
                     </div>
 
-                    {activeBounty ? (
-                      <div style={{
-                        margin: "12px 0 16px",
-                        padding: "12px 16px",
-                        borderRadius: "8px",
-                        backgroundColor: "rgba(245, 158, 11, 0.1)",
-                        border: "1px solid rgba(245, 158, 11, 0.3)",
-                        color: "#f59e0b",
-                        fontSize: "13.5px",
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center"
-                      }}>
-                        <span>💰 <strong>Active Bounty:</strong> Earn <strong>{activeBounty.amount} reputation points</strong> for answering this question!</span>
-                        <span style={{ fontSize: "11px", opacity: 0.8 }}>
-                          Expires: {new Date(activeBounty.expiresAt).toLocaleDateString()}
-                        </span>
-                      </div>
-                    ) : (
-                      user && (
-                        <div style={{ margin: "12px 0 16px" }}>
-                          {!showBountyForm ? (
-                            <button
-                              onClick={() => setShowBountyForm(true)}
-                              style={{
-                                padding: "6px 12px",
-                                fontSize: "12px",
-                                borderRadius: "6px",
-                                backgroundColor: "transparent",
-                                border: "1px dashed var(--border)",
-                                color: "var(--text-secondary)",
-                                cursor: "pointer"
-                              }}
-                            >
-                              + Sponsor Bounty
-                            </button>
-                          ) : (
-                            <form onSubmit={handleCreateBounty} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px", borderRadius: "8px", border: "1px solid var(--border)", backgroundColor: "var(--surface-secondary)" }}>
-                              <span style={{ fontSize: "12.5px" }}>Reputation Points:</span>
-                              <input
-                                type="number"
-                                min="10"
-                                step="10"
-                                value={bountyAmount}
-                                onChange={(e) => setBountyAmount(e.target.value)}
-                                style={{
-                                  width: "70px",
-                                  padding: "4px 8px",
-                                  borderRadius: "4px",
-                                  border: "1px solid var(--border)",
-                                  backgroundColor: "var(--bg-color)",
-                                  color: "var(--text-primary)"
-                                }}
-                                required
-                              />
-                              <button
-                                type="submit"
-                                disabled={bountyLoading}
-                                style={{
-                                  padding: "4px 10px",
-                                  fontSize: "12px",
-                                  borderRadius: "4px",
-                                  backgroundColor: "#f59e0b",
-                                  color: "#fff",
-                                  border: "none",
-                                  cursor: "pointer",
-                                  fontWeight: "600"
-                                }}
-                              >
-                                {bountyLoading ? "Creating..." : "Post Bounty"}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setShowBountyForm(false)}
-                                style={{
-                                  padding: "4px 10px",
-                                  fontSize: "12px",
-                                  borderRadius: "4px",
-                                  backgroundColor: "transparent",
-                                  color: "var(--text-secondary)",
-                                  border: "none",
-                                  cursor: "pointer"
-                                }}
-                              >
-                                Cancel
-                              </button>
-                            </form>
-                          )}
-                        </div>
-                      )
-                    )}                
+                    <BountyPanel questionId={question?.id || id} question={question} answers={answers} onBountyAwarded={() => loadAnswers(0)} />                
 
                 {isEditingQuestion ? (
                   <>
@@ -632,8 +505,9 @@ const handleSubmitReply = async () => {
                     </div>
                   </>
                   ) : (
-                    <h1 className="detail-title">
-                      {selectedLanguage !== "original" &&
+                    <h1 className="detail-title" style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px" }}>
+                      <span style={{ flex: 1 }}>
+                        {selectedLanguage !== "original" &&
                       translations.find(
                         (t) =>
                           t.language.toLowerCase() === selectedLanguage.toLowerCase()
@@ -643,6 +517,26 @@ const handleSubmitReply = async () => {
                             t.language.toLowerCase() === selectedLanguage.toLowerCase()
                         ).question
                         : question.title}
+                      </span>
+                      <button
+                        title="Report this question"
+                        onClick={() => {
+                          setReportTarget({ id: question.id, type: "question" });
+                          setReportModalOpen(true);
+                        }}
+                        style={{
+                          background: "transparent",
+                          border: "none",
+                          fontSize: "1rem",
+                          cursor: "pointer",
+                          padding: 0,
+                          lineHeight: 1,
+                          marginTop: "6px",
+                          flexShrink: 0
+                        }}
+                      >
+                        🚩
+                      </button>
                     </h1>
                   )}
 
@@ -776,7 +670,7 @@ const handleSubmitReply = async () => {
                     </div>
 
                     <div className="detail-meta">
-                      <span>Asked by <strong>{question.author}</strong></span>
+                      <span>Asked by <strong>{question.isAnonymous ? "Anonymous User" : question.author}</strong> {question.isAnonymous && "🕵️"}</span>
                       {question.updatedAt &&
                         question.createdAt &&
                         question.updatedAt !== question.createdAt && (
@@ -792,12 +686,24 @@ const handleSubmitReply = async () => {
                       )}
                       <span>{question.time}</span>
                       <span>👁 {question.views} views</span>
+                    </div>
+                    <div className="detail-actions" style={{ display: "flex", flexWrap: "wrap", gap: "10px", marginTop: "12px", alignItems: "center" }}>
                       <button
                         className={`bookmark-btn ${question.bookmarked ? "bookmarked" : ""}`}
                         onClick={toggleBookmark}
                       >
                         {question.bookmarked ? "★ Bookmarked" : "☆ Bookmark"}
                       </button>
+
+                      {isOwner(question) && (
+                        <button
+                          className="bookmark-btn"
+                          style={{ borderColor: "#3b82f6", color: "#3b82f6" }}
+                          onClick={() => toggleAnonymity(question.id, "question")}
+                        >
+                          {question.isAnonymous ? "De-anonymize" : "Anonymize"}
+                        </button>
+                      )}
 
                   {canEdit(question) && (
                     <button
@@ -1049,6 +955,11 @@ const handleSubmitReply = async () => {
                     <div className="answer-author">
                       <div className="avatar small">{answer.avatar}</div>
                       <strong>{answer.author}</strong>
+                      {answer.authorId === question.authorId && answer.authorId && (
+                        <span style={{ marginLeft: "6px", color: "var(--primary-color)", fontWeight: "bold", fontSize: "12px", background: "rgba(37, 99, 235, 0.1)", padding: "2px 6px", borderRadius: "4px" }}>
+                          [OP]
+                        </span>
+                      )}
                     </div> 
                     <div
                         style={{
@@ -1080,6 +991,29 @@ const handleSubmitReply = async () => {
                       )}
                          <span className="answer-time">{answer.time}</span>
                       </div>
+                      
+                      <button
+                        className="bookmark-btn"
+                        style={{ borderColor: "#ef4444", color: "#ef4444" }}
+                        title="Report answer"
+                        onClick={() => {
+                          setReportTarget({ id: answer.id, type: "answer" });
+                          setReportModalOpen(true);
+                        }}
+                      >
+                        🚩
+                      </button>
+
+                      {isOwner(answer) && (
+                        <button
+                          className="bookmark-btn"
+                          style={{ borderColor: "#3b82f6", color: "#3b82f6" }}
+                          onClick={() => toggleAnonymity(answer.id, "answer")}
+                        >
+                          {answer.isAnonymous ? "De-anonymize" : "Anonymize"}
+                        </button>
+                      )}
+
                       {canEdit(answer) && (
                         <button
                           className="bookmark-btn"
@@ -1146,25 +1080,6 @@ const handleSubmitReply = async () => {
                       </button>
                     )}
                     </div>
-                    {activeBounty && (String(activeBounty.createdBy) === String(user?.id) || user?.role === "admin") && (
-                      <button
-                        onClick={() => handleAwardBounty(answer.id)}
-                        className="bounty-award-btn"
-                        style={{
-                          marginLeft: canDelete(answer) ? "10px" : "auto",
-                          padding: "6px 12px",
-                          borderRadius: "6px",
-                          backgroundColor: "#f59e0b",
-                          color: "#fff",
-                          border: "none",
-                          cursor: "pointer",
-                          fontWeight: "bold",
-                          fontSize: "12px"
-                        }}
-                      >
-                        🏆 Award Bounty ({activeBounty.amount} pts)
-                      </button>
-                    )}
                   </div>
                 </div>
               </div>
@@ -1202,6 +1117,18 @@ const handleSubmitReply = async () => {
                   value={replyText}
                   onChange={(e) => setReplyText(e.target.value)}
                 />
+                <div style={{ marginTop: "12px", marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
+                  <input
+                    type="checkbox"
+                    id="anonymous-reply-checkbox"
+                    checked={isAnonymousReply}
+                    onChange={(e) => setIsAnonymousReply(e.target.checked)}
+                    style={{ width: "16px", height: "16px", cursor: "pointer" }}
+                  />
+                  <label htmlFor="anonymous-reply-checkbox" style={{ fontSize: "14px", cursor: "pointer", color: "var(--text-primary)" }}>
+                    Post anonymously
+                  </label>
+                </div>
                 <button className="reply-submit" onClick={handleSubmitReply}>Post Your Answer</button>
               </section>
             </div>
@@ -1232,6 +1159,122 @@ const handleSubmitReply = async () => {
           </div>
         </main>
       </div>
+
+      {/* Report Modal */}
+      {reportModalOpen && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: "rgba(0,0,0,0.6)", zIndex: 9999,
+          display: "flex", justifyContent: "center", alignItems: "center",
+          backdropFilter: "blur(4px)"
+        }}>
+          <div style={{
+            background: "var(--bg-color, #ffffff)",
+            padding: "24px",
+            borderRadius: "12px",
+            width: "90%",
+            maxWidth: "450px",
+            boxShadow: "0 10px 25px rgba(0,0,0,0.2)",
+            color: "var(--text-color, #333333)"
+          }}>
+            <h3 style={{ margin: "0 0 16px 0", fontSize: "1.25rem", display: "flex", alignItems: "center", gap: "8px" }}>
+              <span style={{ color: "#ef4444" }}>🚩</span> Report {reportTarget?.type === "question" ? "Question" : "Answer"}
+            </h3>
+            
+            <p style={{ fontSize: "14px", color: "var(--text-muted, #666)", marginBottom: "20px" }}>
+              Please let us know why you are reporting this {reportTarget?.type}. Your report will be reviewed by our moderation team.
+            </p>
+
+            <div style={{ marginBottom: "16px" }}>
+              <label style={{ display: "block", marginBottom: "8px", fontWeight: "600", fontSize: "14px" }}>Reason</label>
+              <select 
+                value={reportReason}
+                onChange={(e) => setReportReason(e.target.value)}
+                style={{
+                  width: "100%", padding: "10px", borderRadius: "8px", 
+                  border: "1px solid var(--border-color, #ddd)", background: "var(--input-bg, #fff)", color: "var(--text-color, #333)",
+                  outline: "none"
+                }}
+              >
+                <option value="" disabled>Select a reason...</option>
+                <option value="spam">Spam or misleading</option>
+                <option value="harassment">Harassment or bullying</option>
+                <option value="inappropriate">Inappropriate content</option>
+                <option value="off_topic">Off-topic</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+
+            <div style={{ marginBottom: "24px" }}>
+              <label style={{ display: "block", marginBottom: "8px", fontWeight: "600", fontSize: "14px" }}>Additional Details (Optional)</label>
+              <textarea 
+                placeholder="Provide more specific details..."
+                value={reportDetails}
+                onChange={(e) => setReportDetails(e.target.value)}
+                rows="4"
+                style={{
+                  width: "100%", padding: "10px", borderRadius: "8px", 
+                  border: "1px solid var(--border-color, #ddd)", background: "var(--input-bg, #fff)", color: "var(--text-color, #333)",
+                  resize: "vertical", outline: "none", fontFamily: "inherit"
+                }}
+              />
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", flexDirection: "column" }}>
+              {reportError && (
+                <p style={{ color: "#ef4444", fontSize: "13px", margin: "0 0 4px 0" }}>⚠️ {reportError}</p>
+              )}
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px" }}>
+              <button 
+                onClick={() => {
+                  setReportModalOpen(false);
+                  setReportReason("");
+                  setReportDetails("");
+                  setReportError("");
+                }}
+                style={{
+                  padding: "8px 16px", borderRadius: "8px", border: "1px solid var(--border-color, #ddd)",
+                  background: "transparent", color: "var(--text-color, #333)", cursor: "pointer", fontWeight: "500"
+                }}
+              >
+                Cancel
+              </button>
+              <button 
+                disabled={!reportReason || reportSubmitting}
+                onClick={async () => {
+                  setReportSubmitting(true);
+                  setReportError("");
+                  try {
+                    await submitReport({
+                      targetId: reportTarget.id,
+                      targetType: reportTarget.type,
+                      reason: reportReason,
+                      details: reportDetails
+                    });
+                    setReportModalOpen(false);
+                    setReportReason("");
+                    setReportDetails("");
+                  } catch (err) {
+                    setReportError(err.message || "Failed to submit report. Please try again.");
+                  } finally {
+                    setReportSubmitting(false);
+                  }
+                }}
+                style={{
+                  padding: "8px 16px", borderRadius: "8px", border: "none",
+                  background: reportReason && !reportSubmitting ? "#ef4444" : "#fca5a5",
+                  color: "white", cursor: reportReason && !reportSubmitting ? "pointer" : "not-allowed",
+                  fontWeight: "500", transition: "background 0.2s"
+                }}
+              >
+                {reportSubmitting ? "Submitting..." : "Submit Report"}
+              </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <AskQuestionModal open={showModal} onClose={() => setShowModal(false)} />
     </>
   );

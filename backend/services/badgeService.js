@@ -69,7 +69,8 @@ async function checkAndAwardBadges(userId) {
   const db = getSQLiteDb();
 
   // 1. Get user details
-  if (isMongoAvailable()) {
+  const mongoose = require("mongoose");
+  if (isMongoAvailable() && mongoose.Types.ObjectId.isValid(userId)) {
     const mongoUser = await User.findById(userId);
     if (!mongoUser) return [];
     userReputation = mongoUser.reputation || 0;
@@ -128,7 +129,8 @@ async function checkAndAwardBadges(userId) {
   const newlyAwarded = newBadgesList.filter(b => !currentBadges.includes(b));
 
   if (newlyAwarded.length > 0) {
-    if (isMongoAvailable()) {
+    const mongoose = require("mongoose");
+    if (isMongoAvailable() && mongoose.Types.ObjectId.isValid(userId)) {
       await User.findByIdAndUpdate(userId, { badges: newBadgesList });
     }
 
@@ -185,7 +187,8 @@ async function adjustUserStats(userId, { questionsCountDelta = 0, answersCountDe
 
   const db = getSQLiteDb();
 
-  if (isMongoAvailable()) {
+  const mongoose = require("mongoose");
+  if (isMongoAvailable() && mongoose.Types.ObjectId.isValid(userId)) {
     await User.findByIdAndUpdate(userId, {
       $inc: {
         questionsCount: questionsCountDelta,

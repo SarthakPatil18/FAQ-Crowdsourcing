@@ -49,7 +49,8 @@ router.post("/", requireAuth, async (req, res) => {
 
     let savedBounty = null;
 
-    if (isMongoAvailable()) {
+    const mongoose = require("mongoose");
+    if (isMongoAvailable() && mongoose.Types.ObjectId.isValid(queryId)) {
       const bounty = new Bounty({
         queryId,
         amount,
@@ -88,6 +89,7 @@ router.post("/", requireAuth, async (req, res) => {
       }
     });
   } catch (error) {
+    console.error("Bounty Create Error:", error);
     return fail(res, {
       statusCode: 500,
       code: "BOUNTY_CREATE_FAILED",
@@ -114,9 +116,13 @@ router.post("/:id/award", requireAuth, async (req, res) => {
     const db = getSQLiteDb();
     let bounty = null;
 
-    if (isMongoAvailable()) {
+    const mongoose = require("mongoose");
+    if (isMongoAvailable() && mongoose.Types.ObjectId.isValid(id)) {
       bounty = await Bounty.findById(id);
-    } else {
+    }
+    
+    // If not found in Mongo (or not a Mongo ID), fallback to SQLite
+    if (!bounty) {
       bounty = await db.get("SELECT * FROM bounties WHERE id = ? OR mongo_id = ?", id, id);
     }
 
@@ -128,7 +134,7 @@ router.post("/:id/award", requireAuth, async (req, res) => {
       });
     }
 
-    const status = bounty.status || bounty.status;
+    const status = bounty.status;
     if (status !== "open") {
       return fail(res, {
         statusCode: 400,
@@ -137,14 +143,31 @@ router.post("/:id/award", requireAuth, async (req, res) => {
       });
     }
 
+    const createdBy = String(bounty.createdBy || bounty.created_by);
+    if (createdBy !== String(req.user.id) && req.user.role !== "admin") {
+      return fail(res, {
+        statusCode: 403,
+        code: "FORBIDDEN",
+        message: "Only the bounty creator or an admin can award this bounty"
+      });
+    }
+
     // Verify answer author to award reputation
     let answerAuthorId = null;
-    if (isMongoAvailable()) {
-      const answer = await Answer.findById(answerId);
-      answerAuthorId = answer ? answer.userId : null;
+    let answerQueryId = null;
+    let mongoAnswer = null;
+
+    if (isMongoAvailable() && mongoose.Types.ObjectId.isValid(answerId)) {
+      mongoAnswer = await Answer.findById(answerId);
+    }
+
+    if (mongoAnswer) {
+      answerAuthorId = mongoAnswer.userId;
+      answerQueryId = String(mongoAnswer.queryId);
     } else {
-      const answer = await db.get("SELECT user_id FROM answers WHERE id = ? OR mongo_id = ?", answerId, answerId);
+      const answer = await db.get("SELECT user_id, query_id FROM answers WHERE id = ? OR mongo_id = ?", answerId, answerId);
       answerAuthorId = answer ? answer.user_id : null;
+      answerQueryId = answer ? String(answer.query_id) : null;
     }
 
     if (!answerAuthorId) {
@@ -155,12 +178,23 @@ router.post("/:id/award", requireAuth, async (req, res) => {
       });
     }
 
+    const bountyQueryId = String(bounty.queryId || bounty.query_id);
+    if (answerQueryId !== bountyQueryId) {
+      return fail(res, {
+        statusCode: 400,
+        code: "INVALID_ANSWER",
+        message: "Answer does not belong to the question associated with this bounty"
+      });
+    }
+
     const bountyAmount = bounty.amount;
 
-    if (isMongoAvailable()) {
+    if (isMongoAvailable() && bounty && bounty.save) {
       bounty.status = "closed";
       bounty.winnerId = answerAuthorId;
-      bounty.winnerAnswerId = answerId;
+      if (mongoose.Types.ObjectId.isValid(answerId)) {
+        bounty.winnerAnswerId = answerId;
+      }
       await bounty.save();
     }
 
@@ -196,28 +230,36 @@ router.post("/:id/award", requireAuth, async (req, res) => {
 // GET /api/bounties - List open bounties
 router.get("/", async (req, res) => {
   try {
+    let mongoBounties = [];
     if (isMongoAvailable()) {
-      const bounties = await Bounty.find({ status: "open" }).sort({ createdAt: -1 });
-      return success(res, {
-        storage: "mongodb",
-        data: bounties
-      });
+      mongoBounties = await Bounty.find({ status: "open" }).sort({ createdAt: -1 });
     }
 
     const db = getSQLiteDb();
-    const bounties = await db.all("SELECT * FROM bounties WHERE status = 'open' ORDER BY created_at DESC");
+    const sqliteBounties = await db.all("SELECT * FROM bounties WHERE status = 'open' ORDER BY created_at DESC");
+
+    const formattedSqliteBounties = sqliteBounties.map(b => ({
+      id: b.mongo_id || String(b.id),
+      queryId: b.query_id,
+      amount: b.amount,
+      createdBy: b.created_by,
+      status: b.status,
+      expiresAt: b.expires_at,
+      createdAt: b.created_at
+    }));
+
+    if (isMongoAvailable()) {
+      // Merge: only include SQLite bounties that don't have a mongo_id (i.e. strictly local)
+      const localOnlyBounties = formattedSqliteBounties.filter(b => !b.id.match(/^[0-9a-fA-F]{24}$/));
+      return success(res, {
+        storage: "mongodb+sqlite",
+        data: [...mongoBounties, ...localOnlyBounties]
+      });
+    }
 
     return success(res, {
       storage: "sqlite",
-      data: bounties.map(b => ({
-        id: b.mongo_id || String(b.id),
-        queryId: b.query_id,
-        amount: b.amount,
-        createdBy: b.created_by,
-        status: b.status,
-        expiresAt: b.expires_at,
-        createdAt: b.created_at
-      }))
+      data: formattedSqliteBounties
     });
   } catch (error) {
     return fail(res, {
